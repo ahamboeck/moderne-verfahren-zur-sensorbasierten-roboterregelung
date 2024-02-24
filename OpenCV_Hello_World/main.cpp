@@ -1,6 +1,6 @@
 #include <iostream>
 #include <string.h>
-#include <opencv2/opencv.hpp>l
+#include <opencv2/opencv.hpp>
 
 int main(int argc, char *argv[])
 {   
