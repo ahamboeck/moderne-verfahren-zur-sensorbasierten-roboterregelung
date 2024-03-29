@@ -2,13 +2,37 @@
 #include <string.h>
 #include <opencv2/opencv.hpp>
 
-// Data structure to store the training and test data
+void standardize(cv::Mat &data)
+{
+    for (size_t col = 0; col < data.cols; ++col)
+    {
+        cv::Scalar mean, stddev;
+
+        // Compute mean and standard deviation for each column (pixels)
+        cv::meanStdDev(data.col(col), mean, stddev);
+
+        if (stddev[0] > 0) // Prevent division by zero
+        {
+            /*
+            Standardize each element in the column.
+            The formula for standardization is: Z = (X - mean) / stddev
+            where X is the original value, mean is the average of the feature,
+            and stddev is the standard deviation of the feature.
+            */
+            for (size_t row = 0; row < data.rows; ++row)
+            {
+                data.at<float>(row, col) = (data.at<float>(row, col) - mean[0]) / stddev[0];
+            }
+        }
+    }
+}
+
+// Data structure to store datasets
 struct Data
 {
-    // Training and test data
-    cv::Ptr<cv::ml::TrainData> fullData;
-    cv::Ptr<cv::ml::TrainData> trainData;
-    cv::Ptr<cv::ml::TrainData> testData;
+    cv::Ptr<cv::ml::TrainData> fullData;  // Holds the complete dataset
+    cv::Ptr<cv::ml::TrainData> trainData; // Holds the training dataset
+    cv::Ptr<cv::ml::TrainData> testData;  // Holds the test dataset
 };
 
 cv::Ptr<cv::ml::TrainData> filterData(const cv::Ptr<cv::ml::TrainData> &originalData, int startRow, int endRow)
@@ -19,10 +43,10 @@ cv::Ptr<cv::ml::TrainData> filterData(const cv::Ptr<cv::ml::TrainData> &original
     endRow = std::min(endRow, totalRows); // Ensure endRow does not exceed totalRows
 
     // Get the samples and responses within the specified range
-    cv::Mat samples = originalData->getSamples().rowRange(startRow, endRow);
-    cv::Mat responses = originalData->getResponses().rowRange(startRow, endRow);
+    cv::Mat samples = originalData->getSamples().rowRange(startRow, endRow);     // Get the samples
+    cv::Mat responses = originalData->getResponses().rowRange(startRow, endRow); // Get the responses
 
-    // Apply the mask: Find rows where the response is not 7 or 8
+    // Apply the mask: Find rows where the response is 7 or 8
     cv::Mat mask = (responses == 7) | (responses == 8);
 
     // Create empty matrices for storing filtered data
@@ -32,7 +56,8 @@ cv::Ptr<cv::ml::TrainData> filterData(const cv::Ptr<cv::ml::TrainData> &original
     for (size_t i = 0; i < mask.total(); ++i)
     {
         if (mask.at<uint8_t>(i))
-        { // Check if the mask at position i is true
+        {
+            // Check if the mask at position i is true
             filteredSamples.push_back(samples.row(i));
             filteredResponses.push_back(responses.row(i));
         }
@@ -44,6 +69,11 @@ cv::Ptr<cv::ml::TrainData> filterData(const cv::Ptr<cv::ml::TrainData> &original
 
 int main(int argc, char *argv[])
 {
+    /*
+    There was an issue when loading the mnist_train.csv file, so I used the mnist_test.csv file instead.
+    I was able to load a subset of the size 5000 of the mnist_test.csv file so I think it is because of the
+    size of the file.
+    */
     // Load the data
     Data data;
     data.fullData = cv::ml::TrainData::loadFromCSV("./mnist_test.csv", 0, 0, 1); // First col is the target as a float
@@ -73,5 +103,5 @@ int main(int argc, char *argv[])
         std::cout << "Test Target [" << i << "]: " << value << std::endl;
     }
 
-        return 0;
+    return 0;
 }
