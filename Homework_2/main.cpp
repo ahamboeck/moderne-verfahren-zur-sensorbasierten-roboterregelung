@@ -4,7 +4,7 @@
 
 void standardize(cv::Mat &data)
 {
-    for (size_t col = 0; col < data.cols; ++col)
+    for (int col = 0; col < data.cols; ++col)
     {
         cv::Scalar mean, stddev;
 
@@ -19,7 +19,7 @@ void standardize(cv::Mat &data)
             where X is the original value, mean is the average of the feature,
             and stddev is the standard deviation of the feature.
             */
-            for (size_t row = 0; row < data.rows; ++row)
+            for (int row = 0; row < data.rows; ++row)
             {
                 data.at<float>(row, col) = (data.at<float>(row, col) - mean[0]) / stddev[0];
             }
@@ -103,5 +103,24 @@ int main(int argc, char *argv[])
         std::cout << "Test Target [" << i << "]: " << value << std::endl;
     }
 
+    // Standardize the data to have zero mean and a standard deviation of 1
+    standardize(trainSamples);
+    standardize(testSamples);
+
+    // Sanity check if the data is standardized correctly
+    /*
+    The observed mean is close to zero which is expected after standardization but the standard deviation is at around 0.8 which is not 1 as expected. This could mean
+    that the standardization formula was not applied correctly or the data is not gaussian distributed. I assume the standardization was done correctly. Help :(
+    */
+    cv::Scalar trainMean, trainStddev, testMean, testStddev;
+    cv::meanStdDev(trainSamples, trainMean, trainStddev);                                                  // Calculate mean and standard deviation for the training samples
+    cv::meanStdDev(testSamples, testMean, testStddev);                                                     // Calculate mean and standard deviation for the test samples
+    std::cout << "Training Data: Mean = " << trainMean[0] << ", Stddev = " << trainStddev[0] << std::endl; // Print out the mean and standard deviation for training set
+    std::cout << "Testing Data: Mean = " << testMean[0] << ", Stddev = " << testStddev[0] << std::endl;    // Print out the mean and standard deviation for test set
+
+    // Perform PCA analysis on the training samples
+    double PCADim = 0.95;
+    cv::PCA pcaTrainSamples(trainSamples, cv::Mat(), 0, PCADim);
+    cv::PCA pcaTestSamples(testSamples, cv::Mat(), 0, PCADim);
     return 0;
 }
