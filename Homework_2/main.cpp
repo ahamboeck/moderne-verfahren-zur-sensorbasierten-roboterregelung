@@ -6,40 +6,39 @@
 struct Data
 {
     // Training and test data
+    cv::Ptr<cv::ml::TrainData> fullData;
     cv::Ptr<cv::ml::TrainData> trainData;
     cv::Ptr<cv::ml::TrainData> testData;
 };
 
-cv::Ptr<cv::ml::TrainData> filterData(const cv::Ptr<cv::ml::TrainData> &originalData, int maxRows)
+cv::Ptr<cv::ml::TrainData> filterData(const cv::Ptr<cv::ml::TrainData> &originalData, int startRow, int endRow)
 {
-    // Get the samples and responses
-    cv::Mat samples = originalData->getSamples();
-    cv::Mat responses = originalData->getResponses();
+    // Get the total number of rows in the original data
+    int totalRows = originalData->getSamples().rows;
+    startRow = std::max(0, startRow);     // Ensure startRow is not less than 0
+    endRow = std::min(endRow, totalRows); // Ensure endRow does not exceed totalRows
 
-    // Limit the dataset to the first 'maxRows' rows
-    samples = samples.rowRange(0, std::min(maxRows, samples.rows));
-    responses = responses.rowRange(0, std::min(maxRows, responses.rows));
+    // Get the samples and responses within the specified range
+    cv::Mat samples = originalData->getSamples().rowRange(startRow, endRow);
+    cv::Mat responses = originalData->getResponses().rowRange(startRow, endRow);
 
-    // Find the rows where the response is not 7 or 8 (a little OpenCV magic here :D)
-    cv::Mat mask = (responses != 7) & (responses != 8); // Matrix with the same size as responses, 1 if the condition is true, 0 otherwise
+    // Apply the mask: Find rows where the response is not 7 or 8
+    cv::Mat mask = (responses == 7) | (responses == 8);
 
-    // Create empty matrices for storing filtered data.
+    // Create empty matrices for storing filtered data
     cv::Mat filteredSamples, filteredResponses;
 
-    // Loop through each element in the mask matrix. The 'total()' function returns the count of all elements.
+    // Loop through the mask and filter samples and responses
     for (size_t i = 0; i < mask.total(); ++i)
     {
-        // If the current mask element is true (i.e., not zero), proceed to filter.
-        if (mask.at<uchar>(i)) // 'at<uchar>(i)' accesses the i-th element as an unsigned char.
-        {
-            // Append the i-th row of 'samples' to 'filteredSamples'. This row matches the condition.
+        if (mask.at<uint8_t>(i))
+        { // Check if the mask at position i is true
             filteredSamples.push_back(samples.row(i));
-            // Do the same for 'responses', keeping samples and their responses aligned.
             filteredResponses.push_back(responses.row(i));
         }
     }
 
-    // Create a new TrainData instance from the filtered samples and responses
+    // Create and return a new TrainData instance from the filtered samples and responses
     return cv::ml::TrainData::create(filteredSamples, cv::ml::ROW_SAMPLE, filteredResponses);
 }
 
@@ -47,24 +46,32 @@ int main(int argc, char *argv[])
 {
     // Load the data
     Data data;
-    data.trainData = cv::ml::TrainData::loadFromCSV("./mnist_train.csv", 0, 0, 1); // First col is the target as a float
-    data.testData = cv::ml::TrainData::loadFromCSV("./mnist_test.csv", 0, 0, 1);   // First col is the target as a float
+    data.fullData = cv::ml::TrainData::loadFromCSV("./mnist_test.csv", 0, 0, 1); // First col is the target as a float
 
-    // Filter the data
-    // data.trainData = filterData(data.trainData, 1000); // First 1000, excluding 7 and 8
-    // data.testData = filterData(data.testData, 5000);   // First 5000, excluding 7 and 8
+    // Apply filterData function to create training data from the first 1000 rows and exclude responses 7 and 8
+    data.trainData = filterData(data.fullData, 0, 1000);
+
+    // Similarly, create test data from the next 5000 rows, excluding responses 7 and 8
+    data.testData = filterData(data.fullData, 1000, 6000);
 
     // Get the samples and responses
-    // cv::Mat trainSamples = data.trainData->getTrainSamples();  // Get design matrix
-    // cv::Mat trainTarget = data.trainData->getTrainResponses(); // Get target values
+    cv::Mat trainSamples = data.trainData->getTrainSamples();  // Get design matrix
+    cv::Mat trainTarget = data.trainData->getTrainResponses(); // Get target values
     cv::Mat testSamples = data.testData->getTrainSamples();    // Get design matrix
     cv::Mat testTarget = data.testData->getTrainResponses();   // Get target values
 
-    // Print the size of the data for a sanity check
-    // std::cout << "Train Samples: " << trainSamples.rows << "x" << trainSamples.cols << std::endl;
-    // std::cout << "Train Target: " << trainTarget.rows << "x" << trainTarget.cols << std::endl;
+    // Sanity check if the datas rows and collumns are reasonable
+    std::cout << "Train Samples: " << trainSamples.rows << "x" << trainSamples.cols << std::endl;
+    std::cout << "Train Target: " << trainTarget.rows << "x" << trainTarget.cols << std::endl;
     std::cout << "Test Samples: " << testSamples.rows << "x" << testSamples.cols << std::endl;
     std::cout << "Test Target: " << testTarget.rows << "x" << testTarget.cols << std::endl;
 
-    return 0;
+    // Sanity check if the data is filtered correctly
+    for (int i = 0; i < trainTarget.rows; ++i)
+    {
+        float value = trainTarget.at<float>(i, 0);
+        std::cout << "Test Target [" << i << "]: " << value << std::endl;
+    }
+
+        return 0;
 }
