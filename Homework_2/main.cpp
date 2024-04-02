@@ -2,6 +2,19 @@
 #include <string.h>
 #include <opencv2/opencv.hpp>
 
+
+class LogisticRegression
+{
+    public:
+    LogisticRegression(){std::cout << "Logistic Regression Object Created" << std::endl;}
+    ~LogisticRegression(){std::cout << "Logistic Regression Object Destroyed" << std::endl;}
+
+    void train(){}
+    void predict(){}
+    
+    private:
+};
+
 void standardize(cv::Mat &data)
 {
     for (int col = 0; col < data.cols; ++col)
@@ -129,59 +142,107 @@ int main(int argc, char *argv[])
 
     // Project the training samples onto the PCA space
     cv::Mat projected2DTrainSamples = pca2DTrainSamples.project(trainSamples);
+    cv::Mat projected2DTestSamples = pca2DTestSamples.project(testSamples);
     cv::Mat projected3DTrainSamples = pca3DTrainSamples.project(trainSamples);
+    cv::Mat projected3DTestSamples = pca3DTestSamples.project(testSamples);
 
     // Visualize 2D PCA Projection
     int width2D = 600, height2D = 600;
-    cv::Mat visualization2D = cv::Mat::zeros(height2D, width2D, CV_8UC3);
+    cv::Mat TrainVisualization2D = cv::Mat::zeros(height2D, width2D, CV_8UC3);
+    cv::Mat TestVisualization2D = cv::Mat::zeros(height2D, width2D, CV_8UC3);
 
+    // Find the minimum and maximum values in the projected 2D data
     double minValX2D, maxValX2D, minValY2D, maxValY2D;
     cv::minMaxLoc(projected2DTrainSamples.col(0), &minValX2D, &maxValX2D);
     cv::minMaxLoc(projected2DTrainSamples.col(1), &minValY2D, &maxValY2D);
+    cv::minMaxLoc(projected2DTestSamples.col(0), &minValX2D, &maxValX2D);
+    cv::minMaxLoc(projected2DTestSamples.col(1), &minValY2D, &maxValY2D);
 
+    // Visualize the projected 2D training data
     for (int i = 0; i < projected2DTrainSamples.rows; i++)
     {
-        float x = (projected2DTrainSamples.at<float>(i, 0) - minValX2D) / (maxValX2D - minValX2D) * (width2D - 40) + 20;
-        float y = (projected2DTrainSamples.at<float>(i, 1) - minValY2D) / (maxValY2D - minValY2D) * (height2D - 40) + 20;
+        float x = (projected2DTrainSamples.at<float>(i, 0) - minValX2D) / (maxValX2D - minValX2D) * (width2D - 40) + 20;  // Normalize and scale the x value
+        float y = (projected2DTrainSamples.at<float>(i, 1) - minValY2D) / (maxValY2D - minValY2D) * (height2D - 40) + 20; // Normalize and scale the y value
 
-        int label = static_cast<int>(trainTarget.at<float>(i, 0));
-        cv::Scalar color = label == 7 ? cv::Scalar(255, 0, 0) : cv::Scalar(0, 255, 0);
+        int label = static_cast<int>(trainTarget.at<float>(i, 0));                     // Get the label of the sample
+        cv::Scalar color = label == 7 ? cv::Scalar(255, 0, 0) : cv::Scalar(0, 255, 0); // Set the color based on the label
 
-        cv::circle(visualization2D, cv::Point(static_cast<int>(x), static_cast<int>(height2D - y)), 3, color, CV_FILLED);
+        cv::circle(TrainVisualization2D, cv::Point(static_cast<int>(x), static_cast<int>(height2D - y)), 3, color, CV_FILLED); // Draw a circle at the projected point
     }
 
-    cv::imshow("2D PCA Projection", visualization2D);
+    // Visualize the projected 2D test data
+    for (int i = 0; i < projected2DTestSamples.rows; i++)
+    {
+        float x = (projected2DTestSamples.at<float>(i, 0) - minValX2D) / (maxValX2D - minValX2D) * (width2D - 40) + 20;  // Normalize and scale the x value
+        float y = (projected2DTestSamples.at<float>(i, 1) - minValY2D) / (maxValY2D - minValY2D) * (height2D - 40) + 20; // Normalize and scale the y value
+
+        int label = static_cast<int>(testTarget.at<float>(i, 0));                      // Get the label of the sample
+        cv::Scalar color = label == 7 ? cv::Scalar(255, 0, 0) : cv::Scalar(0, 255, 0); // Set the color based on the label
+
+        cv::circle(TestVisualization2D, cv::Point(static_cast<int>(x), static_cast<int>(height2D - y)), 3, color, CV_FILLED); // Draw a circle at the projected point
+    }
+
+    cv::imshow("2D PCA Projection Train", TrainVisualization2D);     // Display the 2D PCA projection
+    cv::imshow("2D PCA Projection Test", TestVisualization2D); // Display the 2D PCA projection
 
     // Visualize 3D PCA Projection (Simulated in 2D)
     int width3D = 600, height3D = 600;
-    cv::Mat visualization3D = cv::Mat::zeros(height3D, width3D, CV_8UC3);
+    cv::Mat TrainVisualization3D = cv::Mat::zeros(height3D, width3D, CV_8UC3);
+    cv::Mat TestVisualization3D = cv::Mat::zeros(height3D, width3D, CV_8UC3);
 
+    // Find the minimum and maximum values in the projected 3D data
     double minValX3D, maxValX3D, minValY3D, maxValY3D, minValZ3D, maxValZ3D;
-    cv::minMaxLoc(projected3DTrainSamples.col(0), &minValX3D, &maxValX3D);
-    cv::minMaxLoc(projected3DTrainSamples.col(1), &minValY3D, &maxValY3D);
-    cv::minMaxLoc(projected3DTrainSamples.col(2), &minValZ3D, &maxValZ3D);
+    cv::minMaxLoc(projected3DTrainSamples.col(0), &minValX3D, &maxValX3D); // Find the minimum and maximum values in the x column
+    cv::minMaxLoc(projected3DTrainSamples.col(1), &minValY3D, &maxValY3D); // Find the minimum and maximum values in the y column
+    cv::minMaxLoc(projected3DTrainSamples.col(2), &minValZ3D, &maxValZ3D); // Find the minimum and maximum values in the z column
+    cv::minMaxLoc(projected3DTestSamples.col(0), &minValX3D, &maxValX3D);  // Find the minimum and maximum values in the x column
+    cv::minMaxLoc(projected3DTestSamples.col(1), &minValY3D, &maxValY3D);  // Find the minimum and maximum values in the y column
+    cv::minMaxLoc(projected3DTestSamples.col(2), &minValZ3D, &maxValZ3D);  // Find the minimum and maximum values in the z column
 
+    // Visualize the projected 3D training data
     for (int i = 0; i < projected3DTrainSamples.rows; i++)
     {
-        float x = (projected3DTrainSamples.at<float>(i, 0) - minValX3D) / (maxValX3D - minValX3D) * (width3D - 40) + 20;
-        float y = (projected3DTrainSamples.at<float>(i, 1) - minValY3D) / (maxValY3D - minValY3D) * (height3D - 40) + 20;
-        float z = (projected3DTrainSamples.at<float>(i, 2) - minValZ3D) / (maxValZ3D - minValZ3D); // Used for depth effect
+        float x = (projected3DTrainSamples.at<float>(i, 0) - minValX3D) / (maxValX3D - minValX3D) * (width3D - 40) + 20;  // Normalize and scale the x value
+        float y = (projected3DTrainSamples.at<float>(i, 1) - minValY3D) / (maxValY3D - minValY3D) * (height3D - 40) + 20; // Normalize and scale the y value
+        float z = (projected3DTrainSamples.at<float>(i, 2) - minValZ3D) / (maxValZ3D - minValZ3D);                        // Used for depth effect
 
-        int label = static_cast<int>(trainTarget.at<float>(i, 0));
-        cv::Scalar color = label == 7 ? cv::Scalar(255, 0, 0) : cv::Scalar(0, 255, 0);
-        int radius = 3 + static_cast<int>(z * 10); // Simulate depth by changing the radius based on z value
+        int label = static_cast<int>(trainTarget.at<float>(i, 0));                     // Get the label of the sample
+        cv::Scalar color = label == 7 ? cv::Scalar(255, 0, 0) : cv::Scalar(0, 255, 0); // Set the color based on the label
+        int radius = 3 + static_cast<int>(z * 10);                                     // Simulate depth by changing the radius based on z value
 
-        cv::circle(visualization3D, cv::Point(static_cast<int>(x), static_cast<int>(height3D - y)), radius, color, CV_FILLED);
+        cv::circle(TrainVisualization3D, cv::Point(static_cast<int>(x), static_cast<int>(height3D - y)), radius, color, CV_FILLED); // Draw a circle at the projected point
     }
 
-    cv::imshow("Simulated 3D PCA Projection", visualization3D);
-
-    cv::PCA pcaFull(trainSamples, cv::Mat(), cv::PCA::DATA_AS_ROW);
-    
-    std::ofstream outFile("eigenvalues.csv");
-    for (int i = 0; i < pcaFull.eigenvalues.rows; i++)
+    for (int i = 0; i < projected3DTestSamples.rows; i++)
     {
-        outFile << i + 1 << "," << pcaFull.eigenvalues.at<float>(i, 0) << std::endl;
+        float x = (projected3DTestSamples.at<float>(i, 0) - minValX3D) / (maxValX3D - minValX3D) * (width3D - 40) + 20;  // Normalize and scale the x value
+        float y = (projected3DTestSamples.at<float>(i, 1) - minValY3D) / (maxValY3D - minValY3D) * (height3D - 40) + 20; // Normalize and scale the y value
+        float z = (projected3DTestSamples.at<float>(i, 2) - minValZ3D) / (maxValZ3D - minValZ3D);                        // Used for depth effect
+
+        int label = static_cast<int>(testTarget.at<float>(i, 0));                      // Get the label of the sample
+        cv::Scalar color = label == 7 ? cv::Scalar(255, 0, 0) : cv::Scalar(0, 255, 0); // Set the color based on the label
+        int radius = 3 + static_cast<int>(z * 10);                                     // Simulate depth by changing the radius based on z value
+
+        cv::circle(TestVisualization3D, cv::Point(static_cast<int>(x), static_cast<int>(height3D - y)), radius, color, CV_FILLED); // Draw a circle at the projected point
+    }
+
+    cv::imshow("Simulated 3D PCA Projection Train", TrainVisualization3D);
+    cv::imshow("Simulated 3D PCA Projection Test", TestVisualization3D);
+
+    cv::PCA pcaTrainAllDimensions(trainSamples, cv::Mat(), cv::PCA::DATA_AS_ROW);
+    cv::PCA pcaTestAllDimensions(testSamples, cv::Mat(), cv::PCA::DATA_AS_ROW);
+
+    std::ofstream outFile("eigenvalues_train.csv");
+    for (int i = 0; i < pcaTrainAllDimensions.eigenvalues.rows; i++)
+    {
+        outFile << i + 1 << "," << pcaTrainAllDimensions.eigenvalues.at<float>(i, 0) << std::endl;
+    }
+    outFile.close();
+
+    outFile.open("eigenvalues_test.csv");
+    for (int i = 0; i < pcaTestAllDimensions.eigenvalues.rows; i++)
+    {
+        outFile << i + 1 << "," << pcaTestAllDimensions.eigenvalues.at<float>(i, 0) << std::endl;
     }
     outFile.close();
 
