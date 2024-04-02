@@ -9,10 +9,44 @@ class LogisticRegression
     LogisticRegression(){std::cout << "Logistic Regression Object Created" << std::endl;}
     ~LogisticRegression(){std::cout << "Logistic Regression Object Destroyed" << std::endl;}
 
-    void train(){}
-    void predict(){}
+    void train(int epochs, cv::Mat &data, cv::Mat &labels)
+    {
+        std::cout << "Training Logistic Regression Model" << std::endl;
+        std::cout << "Number of Epochs: " << epochs << std::endl;
+
+        this->data_ = data;
+        this->labels_ = labels;
+        for (int i = 0; i < epochs; ++i)
+        {
+            std::cout << "Epoch " << i + 1 << std::endl;
+
+            // Perform forward pass
     
+
+            // Perform backward pass
+        
+        }
+        }
+    // FIX A LOT OF STUFF HERE
+    void predict(cv::Mat &data)
+    {
+        std::cout << "Predicting using Logistic Regression Model" << std::endl;
+        this->data_ = data;
+
+        this->dotProduct_ = data_.dot(weights_); // Compute the dot product
+
+        // Perform forward pass
+        predictions_ = 1.0 / (1.0 + cv::exp(-dotProduct_)); // Sigmoid function
+    }
+
     private:
+    cv::Mat data_;
+    cv::Mat labels_;
+
+    int inputDim_ = this->data_.size().width;
+    cv::Mat weights_ = cv::Mat::zeros(inputDim_+1, 1, CV_32F);
+    cv::Mat predictions_;
+    double dotProduct_;
 };
 
 void standardize(cv::Mat &data)
