@@ -9,62 +9,102 @@ public:
     {
         // Initialize weights based on the number of PCA components/features + 1 for bias
         this->weights_ = cv::Mat::zeros(numFeatures + 1, 1, CV_32F);
-        std::cout << "Logistic Regression Object Created with " << numFeatures << " features" << std::endl;
+        // std::cout << "Logistic Regression Object Created with " << numFeatures << " features" << std::endl;
     }
 
     ~LogisticRegression()
     {
-        std::cout << "Logistic Regression Object Destroyed" << std::endl;
+        // std::cout << "Logistic Regression Object Destroyed" << std::endl;
+    }
+
+    cv::Mat weights_;      // Weight vector, including bias weight
+    cv::Mat predictions_;  // To store predictions after calling `predict`
+    cv::Mat dataWithBias_; // To store the data matrix with the bias term
+
+    void dataPreprocessor(cv::Mat &data)
+    {
+        // std::cout << "Preprocessing Data" << std::endl;
+        // Ensure data includes the bias term; prepend a column of ones
+        cv::hconcat(cv::Mat::ones(data.rows, 1, data.type()), data, this->dataWithBias_); // Concatenate the column of ones to the original data matrix
+    }
+
+    void sigmoid(const cv::Mat &dataWithBias, const cv::Mat &weights)
+    {
+        cv::Mat exponendOfWeightedSums;                            // To store the exponential of the weighted sums
+        cv::Mat weightedSums = -dataWithBias * weights;            // Perform matrix-vector multiplication to get weighted sums
+        cv::exp(weightedSums, exponendOfWeightedSums);             // Apply the exponential function element-wise
+        this->predictions_ = 1.0 / (1.0 + exponendOfWeightedSums); // Apply the sigmoid function element-wise
+
+        // Sanity Check x)
+        // std::cout << "Predictions: " << this->predictions_.rows << "x" << this->predictions_.cols << std::endl;
+        // std::cout << "weightedSums: " << weightedSums.rows << "x" << weightedSums.cols << std::endl;
+        // std::cout << "exponendOfWeightedSums: " << exponendOfWeightedSums.rows << "x" << exponendOfWeightedSums.cols << std::endl;
+        // std::cout << "dataWithBias: " << dataWithBias.rows << "x" << dataWithBias.cols << std::endl;
+        // std::cout << "weights: " << weights.rows << "x" << weights.cols << std::endl;
     }
 
     void train(int epochs, cv::Mat &data, cv::Mat &labels)
     {
-        std::cout << "Training Logistic Regression Model" << std::endl;
-        std::cout << "Number of Epochs: " << epochs << std::endl;
+        // std::cout << "Training Logistic Regression Model" << std::endl;
+        // std::cout << "Number of Epochs: " << epochs << std::endl;
 
+        dataPreprocessor(data);                                   // Preprocess the data
+        cv::Mat W = cv::Mat::zeros(data.rows, data.rows, CV_32F); // Initialize W as a diagonal matrix
         for (int i = 0; i < epochs; ++i)
         {
-            std::cout << "Epoch " << i + 1 << std::endl;
+            predict(data); // Obtain current predictions to fill 'predictions_'
 
-            // Perform forward pass
+            // Construct the diagonal weight matrix W for IRLS
+            for (int j = 0; j < data.rows; ++j)
+            {
+                float p = predictions_.at<float>(j, 0);
+                W.at<float>(j, j) = p * (1 - p);
+            }
 
-            // Perform backward pass
+            cv::Mat Hessian = dataWithBias_.t() * W * dataWithBias_;
+            cv::Mat gradient = dataWithBias_.t() * (predictions_ - labels);
+            cv::Mat HessianInv;
+            cv::invert(Hessian, HessianInv, cv::DECOMP_SVD);
+            weights_ -= HessianInv * gradient;
+
+            cv::Mat predictedLabels;
+            predict(data);
+            cv::threshold(predictions_, predictedLabels, 0.5, 1, cv::THRESH_BINARY);
+            float accuracy = cv::countNonZero(predictedLabels == labels) / static_cast<float>(labels.rows);
+
+            std::cout << "Epoch " << i + 1 << ": Accuracy = " << accuracy << std::endl;
+
+            // Logging dimensions for debugging
+            // std::cout << "Epoch " << i + 1 << ": Weights updated." << std::endl;
         }
     }
 
     // FIXTHIS START WRITING TRAINING FUNCTION
     void predict(cv::Mat &data)
     {
-        std::cout << "Predicting using Logistic Regression Model" << std::endl;
-
+        // std::cout << "Predicting using Logistic Regression Model" << std::endl;
         // Ensure data includes the bias term; prepend a column of ones
-        cv::Mat ones = cv::Mat::ones(data.rows, 1, data.type());
-        cv::Mat dataWithBias;
-        cv::hconcat(ones, data, dataWithBias); // Concatenate the column of ones to the original data matrix
-
-        // Perform matrix-vector multiplication to get weighted sums
-        cv::Mat weightedSums = dataWithBias * weights_;
-
-        // Apply the sigmoid function to each weighted sum to get predictions
-        cv::Mat predictions;
-        cv::exp(-weightedSums, predictions);     // Apply the exponential function element-wise
-        predictions = 1.0 / (1.0 + predictions); // Apply the sigmoid function element-wise
-
-        // For demonstration: print the first few predictions
-        std::cout << "First few predictions:" << std::endl;
-        for (int i = 0; i < std::min(5, predictions.rows); ++i)
-        {
-            std::cout << predictions.at<float>(i, 0) << std::endl;
-        }
-
-        // Optionally, store predictions for later use
-        this->predictions_ = predictions;
+        dataPreprocessor(data);                       // Preprocess the data
+        sigmoid(this->dataWithBias_, this->weights_); // Compute the sigmoid function
     }
-
-private:
-    cv::Mat weights_;     // Weight vector, including bias weight
-    cv::Mat predictions_; // To store predictions after calling `predict`
 };
+
+cv::Mat convertLabels(const cv::Mat &originalLabels)
+{
+    cv::Mat binaryLabels = originalLabels.clone();
+    for (int i = 0; i < binaryLabels.rows; ++i)
+    {
+        if (binaryLabels.at<float>(i, 0) == 7)
+        {
+            binaryLabels.at<float>(i, 0) = 0.0; // Map 7 to 0
+        }
+        else if (binaryLabels.at<float>(i, 0) == 8)
+        {
+            binaryLabels.at<float>(i, 0) = 1.0; // Map 8 to 1
+        }
+    }
+    return binaryLabels;
+}
 
 void standardize(cv::Mat &data)
 {
@@ -155,17 +195,17 @@ int main(int argc, char *argv[])
     cv::Mat testTarget = data.testData->getTrainResponses();   // Get target values
 
     // Sanity check if the datas rows and collumns are reasonable
-    std::cout << "Train Samples: " << trainSamples.rows << "x" << trainSamples.cols << std::endl;
-    std::cout << "Train Target: " << trainTarget.rows << "x" << trainTarget.cols << std::endl;
-    std::cout << "Test Samples: " << testSamples.rows << "x" << testSamples.cols << std::endl;
-    std::cout << "Test Target: " << testTarget.rows << "x" << testTarget.cols << std::endl;
+    // std::cout << "Train Samples: " << trainSamples.rows << "x" << trainSamples.cols << std::endl;
+    // std::cout << "Train Target: " << trainTarget.rows << "x" << trainTarget.cols << std::endl;
+    // std::cout << "Test Samples: " << testSamples.rows << "x" << testSamples.cols << std::endl;
+    // std::cout << "Test Target: " << testTarget.rows << "x" << testTarget.cols << std::endl;
 
     // Sanity check if the data is filtered correctly
-    for (int i = 0; i < trainTarget.rows; ++i)
-    {
-        float value = trainTarget.at<float>(i, 0);
-        std::cout << "Test Target [" << i << "]: " << value << std::endl;
-    }
+    // for (int i = 0; i < trainTarget.rows; ++i)
+    // {
+    //     float value = trainTarget.at<float>(i, 0);
+    //     std::cout << "Test Target [" << i << "]: " << value << std::endl;
+    // }
 
     // Standardize the data to have zero mean and a standard deviation of 1
     standardize(trainSamples);
@@ -177,10 +217,10 @@ int main(int argc, char *argv[])
     that the standardization formula was not applied correctly or the data is not gaussian distributed. I assume the standardization was done correctly. Help :(
     */
     cv::Scalar trainMean, trainStddev, testMean, testStddev;
-    cv::meanStdDev(trainSamples, trainMean, trainStddev);                                                  // Calculate mean and standard deviation for the training samples
-    cv::meanStdDev(testSamples, testMean, testStddev);                                                     // Calculate mean and standard deviation for the test samples
-    std::cout << "Training Data: Mean = " << trainMean[0] << ", Stddev = " << trainStddev[0] << std::endl; // Print out the mean and standard deviation for training set
-    std::cout << "Testing Data: Mean = " << testMean[0] << ", Stddev = " << testStddev[0] << std::endl;    // Print out the mean and standard deviation for test set
+    cv::meanStdDev(trainSamples, trainMean, trainStddev); // Calculate mean and standard deviation for the training samples
+    cv::meanStdDev(testSamples, testMean, testStddev);    // Calculate mean and standard deviation for the test samples
+    // std::cout << "Training Data: Mean = " << trainMean[0] << ", Stddev = " << trainStddev[0] << std::endl; // Print out the mean and standard deviation for training set
+    // std::cout << "Testing Data: Mean = " << testMean[0] << ", Stddev = " << testStddev[0] << std::endl;    // Print out the mean and standard deviation for test set
 
     cv::PCA pcaTrain1D(trainSamples, cv::Mat(), cv::PCA::DATA_AS_ROW, 1);
     cv::PCA pcaTest1D(testSamples, cv::Mat(), cv::PCA::DATA_AS_ROW, 1);
@@ -337,14 +377,59 @@ int main(int argc, char *argv[])
     outFile.close();
 
     // Sanity check if the projected data is reasonable
-    std::cout << "Projected 2D Train Samples dimensions: " << projected2DTrainSamples.rows << "x" << projected2DTrainSamples.cols << std::endl;
-    std::cout << "Projected 2D Test Samples dimensions: " << projected2DTestSamples.rows << "x" << projected2DTestSamples.cols << std::endl;
-    std::cout << "Projected 3D Train Samples dimensions: " << projected3DTrainSamples.rows << "x" << projected3DTrainSamples.cols << std::endl;
-    std::cout << "Projected 3D Test Samples dimensions: " << projected3DTestSamples.rows << "x" << projected3DTestSamples.cols << std::endl;
+    // std::cout << "Projected 2D Train Samples dimensions: " << projected2DTrainSamples.rows << "x" << projected2DTrainSamples.cols << std::endl;
+    // std::cout << "Projected 2D Test Samples dimensions: " << projected2DTestSamples.rows << "x" << projected2DTestSamples.cols << std::endl;
+    // std::cout << "Projected 3D Train Samples dimensions: " << projected3DTrainSamples.rows << "x" << projected3DTrainSamples.cols << std::endl;
+    // std::cout << "Projected 3D Test Samples dimensions: " << projected3DTestSamples.rows << "x" << projected3DTestSamples.cols << std::endl;
 
     LogisticRegression model2D(2);
     model2D.predict(projected2DTestSamples);
 
+    // Printing out the first few labels for a sanity check
+    // std::cout << "First few labels in the training dataset:" << std::endl;
+    // for (int i = 0; i < std::min(trainTarget.rows, 5); ++i)
+    // {
+    //     float label = trainTarget.at<float>(i, 0);
+    //     std::cout << "Label [" << i << "]: " << label << std::endl;
+    // }
+
+    // std::cout << "\nFirst few labels in the test dataset:" << std::endl;
+    // for (int i = 0; i < std::min(testTarget.rows, 5); ++i)
+    // {
+    //     float label = testTarget.at<float>(i, 0);
+    //     std::cout << "Label [" << i << "]: " << label << std::endl;
+    // }
+
+    // Map 7 to 0 and 8 to 1
+    cv::Mat trainLabelsBinary = convertLabels(trainTarget); // Convert the training labels to binary
+    cv::Mat testLabelsBinary = convertLabels(testTarget);   // Convert the test labels to binary
+
+    // Print out the first few labels for a sanity check
+    // std::cout << "First few binary labels in the training dataset:" << std::endl;
+    // for (int i = 0; i < std::min(trainLabelsBinary.rows, 5); ++i)
+    // {
+    //     float label = trainLabelsBinary.at<float>(i, 0);
+    //     std::cout << "Label [" << i << "]: " << label << std::endl;
+    // }
+
+    // std::cout << "\nFirst few binary labels in the test dataset:" << std::endl;
+    // for (int i = 0; i < std::min(testLabelsBinary.rows, 5); ++i)
+    // {
+    //     float label = testLabelsBinary.at<float>(i, 0);
+    //     std::cout << "Label [" << i << "]: " << label << std::endl;
+    // }
+
+    model2D.train(5, projected2DTestSamples, testLabelsBinary);
+    model2D.predict(projected2DTrainSamples);
+
+    // Accuracy calculation
+    cv::Mat predictedLabels;
+    cv::threshold(model2D.predictions_, predictedLabels, 0.5, 1, cv::THRESH_BINARY);
+    float accuracy = cv::countNonZero(predictedLabels == trainLabelsBinary) / static_cast<float>(trainLabelsBinary.rows);
+    std::cout << "Accuracy: " << accuracy << std::endl;
+
     cv::waitKey(0);
+
+    // FIX MAJOR ISSUE WITH TRAINING
     return 0;
 }
