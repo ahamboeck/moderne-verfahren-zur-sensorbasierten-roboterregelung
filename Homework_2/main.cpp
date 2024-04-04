@@ -64,7 +64,7 @@ public:
             cv::Mat Hessian = dataWithBias_.t() * W * dataWithBias_;
             cv::Mat gradient = dataWithBias_.t() * (predictions_ - labels);
             cv::Mat HessianInv;
-            cv::invert(Hessian, HessianInv, cv::DECOMP_SVD);
+            cv::invert(Hessian, HessianInv, 0);
             weights_ -= HessianInv * gradient;
 
             cv::Mat predictedLabels;
@@ -382,8 +382,15 @@ int main(int argc, char *argv[])
     // std::cout << "Projected 3D Train Samples dimensions: " << projected3DTrainSamples.rows << "x" << projected3DTrainSamples.cols << std::endl;
     // std::cout << "Projected 3D Test Samples dimensions: " << projected3DTestSamples.rows << "x" << projected3DTestSamples.cols << std::endl;
 
-    LogisticRegression model2D(2);
-    model2D.predict(projected2DTestSamples);
+    cv::PCA pcaTrain85D(trainSamples, cv::Mat(), cv::PCA::DATA_AS_ROW, 85);
+    cv::PCA pcaTest85D(testSamples, cv::Mat(), cv::PCA::DATA_AS_ROW, 85);
+
+    cv::Mat projected85DTrainSamples = pcaTrain85D.project(trainSamples);
+    cv::Mat projected85DTestSamples = pcaTest85D.project(testSamples);
+
+
+    LogisticRegression model2D(85);
+    model2D.predict(projected85DTestSamples);
 
     // Printing out the first few labels for a sanity check
     // std::cout << "First few labels in the training dataset:" << std::endl;
@@ -419,14 +426,31 @@ int main(int argc, char *argv[])
     //     std::cout << "Label [" << i << "]: " << label << std::endl;
     // }
 
-    model2D.train(5, projected2DTestSamples, testLabelsBinary);
-    model2D.predict(projected2DTrainSamples);
+    model2D.train(10, projected85DTrainSamples, trainLabelsBinary);
+    model2D.predict(projected85DTestSamples);
 
     // Accuracy calculation
     cv::Mat predictedLabels;
+
     cv::threshold(model2D.predictions_, predictedLabels, 0.5, 1, cv::THRESH_BINARY);
-    float accuracy = cv::countNonZero(predictedLabels == trainLabelsBinary) / static_cast<float>(trainLabelsBinary.rows);
+    float accuracy = cv::countNonZero(predictedLabels == testLabelsBinary) / static_cast<float>(testLabelsBinary.rows);
     std::cout << "Accuracy: " << accuracy << std::endl;
+
+    // Print the prediction values for a sanity check
+    std::cout << "First few predicted labels:" << std::endl;
+    for (int i = 0; i < std::min(model2D.predictions_.rows, 10); ++i)
+    {
+        float label = model2D.predictions_.at<float>(i, 0);
+        std::cout << "Label [" << i << "]: " << label << std::endl;
+    }
+
+    // Print the labels for a sanity check
+    std::cout << "First few test labels:" << std::endl;
+    for (int i = 0; i < std::min(testLabelsBinary.rows, 10); ++i)
+    {
+        float label = testLabelsBinary.at<float>(i, 0);
+        std::cout << "Label [" << i << "]: " << label << std::endl;
+    }
 
     cv::waitKey(0);
 
