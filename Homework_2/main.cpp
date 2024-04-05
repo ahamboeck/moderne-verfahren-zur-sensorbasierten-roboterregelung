@@ -7,85 +7,71 @@ class LogisticRegression
 public:
     LogisticRegression(int numFeatures)
     {
-        // Initialize weights based on the number of PCA components/features + 1 for bias
         this->weights_ = cv::Mat::zeros(numFeatures + 1, 1, CV_32F);
-        // std::cout << "Logistic Regression Object Created with " << numFeatures << " features" << std::endl;
     }
 
     ~LogisticRegression()
     {
-        // std::cout << "Logistic Regression Object Destroyed" << std::endl;
     }
 
     cv::Mat weights_;      // Weight vector, including bias weight
     cv::Mat predictions_;  // To store predictions after calling `predict`
     cv::Mat dataWithBias_; // To store the data matrix with the bias term
 
-    void dataPreprocessor(cv::Mat &data)
+    cv::Mat dataPreprocessor(const cv::Mat &data)
     {
-        // std::cout << "Preprocessing Data" << std::endl;
-        // Ensure data includes the bias term; prepend a column of ones
-        cv::hconcat(cv::Mat::ones(data.rows, 1, data.type()), data, this->dataWithBias_); // Concatenate the column of ones to the original data matrix
+        cv::Mat dataWithBias;
+        cv::hconcat(cv::Mat::ones(data.rows, 1, data.type()), data, dataWithBias); // Concatenate the column of ones to the original data matrix
+        return dataWithBias;
     }
 
-    void sigmoid(const cv::Mat &dataWithBias, const cv::Mat &weights)
+    void train(int epochs, cv::Mat &trainData, cv::Mat &trainLabels, cv::Mat &testData, cv::Mat &testLabels)
     {
-        cv::Mat exponendOfWeightedSums;                            // To store the exponential of the weighted sums
-        cv::Mat weightedSums = -dataWithBias * weights;            // Perform matrix-vector multiplication to get weighted sums
-        cv::exp(weightedSums, exponendOfWeightedSums);             // Apply the exponential function element-wise
-        this->predictions_ = 1.0 / (1.0 + exponendOfWeightedSums); // Apply the sigmoid function element-wise
-
-        // Sanity Check x)
-        // std::cout << "Predictions: " << this->predictions_.rows << "x" << this->predictions_.cols << std::endl;
-        // std::cout << "weightedSums: " << weightedSums.rows << "x" << weightedSums.cols << std::endl;
-        // std::cout << "exponendOfWeightedSums: " << exponendOfWeightedSums.rows << "x" << exponendOfWeightedSums.cols << std::endl;
-        // std::cout << "dataWithBias: " << dataWithBias.rows << "x" << dataWithBias.cols << std::endl;
-        // std::cout << "weights: " << weights.rows << "x" << weights.cols << std::endl;
-    }
-
-    void train(int epochs, cv::Mat &data, cv::Mat &labels)
-    {
-        // std::cout << "Training Logistic Regression Model" << std::endl;
-        // std::cout << "Number of Epochs: " << epochs << std::endl;
-
-        dataPreprocessor(data);                                   // Preprocess the data
-        cv::Mat W = cv::Mat::zeros(data.rows, data.rows, CV_32F); // Initialize W as a diagonal matrix
         for (int i = 0; i < epochs; ++i)
         {
-            predict(data); // Obtain current predictions to fill 'predictions_'
+            // Preprocess training data locally
+            cv::Mat trainDataWithBias = dataPreprocessor(trainData);
+
+            // Obtain predictions for the training data
+            cv::Mat trainPredictions = predict(trainDataWithBias); // Assuming predict now uses data with bias directly
 
             // Construct the diagonal weight matrix W for IRLS
-            for (int j = 0; j < data.rows; ++j)
+            cv::Mat W = cv::Mat::zeros(trainData.rows, trainData.rows, CV_32F);
+            for (int j = 0; j < trainData.rows; ++j)
             {
-                float p = predictions_.at<float>(j, 0);
+                float p = trainPredictions.at<float>(j, 0);
                 W.at<float>(j, j) = p * (1 - p);
             }
 
-            cv::Mat Hessian = dataWithBias_.t() * W * dataWithBias_;
-            cv::Mat gradient = dataWithBias_.t() * (predictions_ - labels);
+            // Calculate Hessian and gradient for weight update
+            cv::Mat Hessian = trainDataWithBias.t() * W * trainDataWithBias;
+            cv::Mat gradient = trainDataWithBias.t() * (trainPredictions - trainLabels);
             cv::Mat HessianInv;
-            cv::invert(Hessian, HessianInv, 0);
+            cv::invert(Hessian, HessianInv, cv::DECOMP_SVD); // Using SVD for inversion for better numerical stability
             weights_ -= HessianInv * gradient;
 
-            cv::Mat predictedLabels;
-            predict(data);
-            cv::threshold(predictions_, predictedLabels, 0.5, 1, cv::THRESH_BINARY);
-            float accuracy = cv::countNonZero(predictedLabels == labels) / static_cast<float>(labels.rows);
+            // Calculate and print accuracy on the test data for monitoring
+            cv::Mat testDataWithBias = dataPreprocessor(testData); // Preprocess test data
+            cv::Mat testPredictions = predict(testDataWithBias);   // Predict on test data
+            cv::Mat predictedTestLabels;
+            cv::threshold(testPredictions, predictedTestLabels, 0.5, 1, cv::THRESH_BINARY); // Convert probabilities to binary predictions
 
-            std::cout << "Epoch " << i + 1 << ": Accuracy = " << accuracy << std::endl;
-
-            // Logging dimensions for debugging
-            // std::cout << "Epoch " << i + 1 << ": Weights updated." << std::endl;
+            float testAccuracy = cv::countNonZero(predictedTestLabels == testLabels) / static_cast<float>(testLabels.rows);
+            std::cout << "Epoch: " << i << " Test Accuracy: " << testAccuracy << std::endl;
         }
     }
 
-    // FIXTHIS START WRITING TRAINING FUNCTION
-    void predict(cv::Mat &data)
+    cv::Mat predict(const cv::Mat &dataWithBias)
     {
-        // std::cout << "Predicting using Logistic Regression Model" << std::endl;
-        // Ensure data includes the bias term; prepend a column of ones
-        dataPreprocessor(data);                       // Preprocess the data
-        sigmoid(this->dataWithBias_, this->weights_); // Compute the sigmoid function
+        return sigmoid(dataWithBias, this->weights_);
+    }
+
+    cv::Mat sigmoid(const cv::Mat &dataWithBias, const cv::Mat &weights)
+    {
+        cv::Mat exponendOfWeightedSums;
+        cv::Mat weightedSums = dataWithBias * weights;
+        cv::exp(-weightedSums, exponendOfWeightedSums);
+        return 1.0 / (1.0 + exponendOfWeightedSums);
     }
 };
 
@@ -185,27 +171,27 @@ int main(int argc, char *argv[])
     // Apply filterData function to create training data from the first 1000 rows and exclude responses 7 and 8
     data.trainData = filterData(data.fullData, 0, 1000);
 
+    // Print the number of 7 and 8 in the training data
+    cv::Mat trainResponses = data.trainData->getResponses();
+    int count7 = cv::countNonZero(trainResponses == 7);
+    int count8 = cv::countNonZero(trainResponses == 8);
+    std::cout << "Number of 7s in the training data: " << count7 << std::endl;
+    std::cout << "Number of 8s in the training data: " << count8 << std::endl;
+
     // Similarly, create test data from the next 5000 rows, excluding responses 7 and 8
     data.testData = filterData(data.fullData, 1000, 6000);
+    // Print the number of 7 and 8 in the test data
+    cv::Mat testResponses = data.testData->getResponses();
+    count7 = cv::countNonZero(testResponses == 7);
+    count8 = cv::countNonZero(testResponses == 8);
+    std::cout << "Number of 7s in the test data: " << count7 << std::endl;
+    std::cout << "Number of 8s in the test data: " << count8 << std::endl;
 
     // Get the samples and responses
     cv::Mat trainSamples = data.trainData->getTrainSamples();  // Get design matrix
     cv::Mat trainTarget = data.trainData->getTrainResponses(); // Get target values
     cv::Mat testSamples = data.testData->getTrainSamples();    // Get design matrix
     cv::Mat testTarget = data.testData->getTrainResponses();   // Get target values
-
-    // Sanity check if the datas rows and collumns are reasonable
-    // std::cout << "Train Samples: " << trainSamples.rows << "x" << trainSamples.cols << std::endl;
-    // std::cout << "Train Target: " << trainTarget.rows << "x" << trainTarget.cols << std::endl;
-    // std::cout << "Test Samples: " << testSamples.rows << "x" << testSamples.cols << std::endl;
-    // std::cout << "Test Target: " << testTarget.rows << "x" << testTarget.cols << std::endl;
-
-    // Sanity check if the data is filtered correctly
-    // for (int i = 0; i < trainTarget.rows; ++i)
-    // {
-    //     float value = trainTarget.at<float>(i, 0);
-    //     std::cout << "Test Target [" << i << "]: " << value << std::endl;
-    // }
 
     // Standardize the data to have zero mean and a standard deviation of 1
     standardize(trainSamples);
@@ -219,145 +205,9 @@ int main(int argc, char *argv[])
     cv::Scalar trainMean, trainStddev, testMean, testStddev;
     cv::meanStdDev(trainSamples, trainMean, trainStddev); // Calculate mean and standard deviation for the training samples
     cv::meanStdDev(testSamples, testMean, testStddev);    // Calculate mean and standard deviation for the test samples
-    // std::cout << "Training Data: Mean = " << trainMean[0] << ", Stddev = " << trainStddev[0] << std::endl; // Print out the mean and standard deviation for training set
-    // std::cout << "Testing Data: Mean = " << testMean[0] << ", Stddev = " << testStddev[0] << std::endl;    // Print out the mean and standard deviation for test set
 
-    cv::PCA pcaTrain1D(trainSamples, cv::Mat(), cv::PCA::DATA_AS_ROW, 1);
-    cv::PCA pcaTest1D(testSamples, cv::Mat(), cv::PCA::DATA_AS_ROW, 1);
-
-    cv::Mat projected1DTrainSamples = pcaTrain1D.project(trainSamples);
-    cv::Mat projected1DTestSamples = pcaTest1D.project(testSamples);
-
-    // Visualize 1D PCA Projection
-    int width1D = 600, height1D = 600;
-    cv::Mat TrainVisualization1D = cv::Mat::zeros(height1D, width1D, CV_8UC3);
-    cv::Mat TestVisualization1D = cv::Mat::zeros(height1D, width1D, CV_8UC3);
-
-    // Find the minimum and maximum values in the projected 1D data
-    double minVal1D, maxVal1D;
-    cv::minMaxLoc(projected1DTrainSamples, &minVal1D, &maxVal1D);
-    cv::minMaxLoc(projected1DTestSamples, &minVal1D, &maxVal1D);
-
-    // Visualize the projected 1D training data
-    for (int i = 0; i < projected1DTrainSamples.rows; i++)
-    {
-        float x = (projected1DTrainSamples.at<float>(i, 0) - minVal1D) / (maxVal1D - minVal1D) * (width1D - 40) + 20; // Normalize and scale the x value
-
-        int label = static_cast<int>(trainTarget.at<float>(i, 0));                     // Get the label of the sample
-        cv::Scalar color = label == 7 ? cv::Scalar(255, 0, 0) : cv::Scalar(0, 255, 0); // Set the color based on the label
-
-        cv::circle(TrainVisualization1D, cv::Point(static_cast<int>(x), height1D / 2), 3, color, CV_FILLED); // Draw a circle at the projected point
-    }
-
-    // Visualize the projected 1D test data
-    for (int i = 0; i < projected1DTestSamples.rows; i++)
-    {
-        float x = (projected1DTestSamples.at<float>(i, 0) - minVal1D) / (maxVal1D - minVal1D) * (width1D - 40) + 20; // Normalize and scale the x value
-
-        int label = static_cast<int>(testTarget.at<float>(i, 0));                      // Get the label of the sample
-        cv::Scalar color = label == 7 ? cv::Scalar(255, 0, 0) : cv::Scalar(0, 255, 0); // Set the color based on the label
-
-        cv::circle(TestVisualization1D, cv::Point(static_cast<int>(x), height1D / 2), 3, color, CV_FILLED); // Draw a circle at the projected point
-    }
-
-    cv::imshow("1D PCA Projection Train", TrainVisualization1D); // Display the 1D PCA projection
-    cv::imshow("1D PCA Projection Test", TestVisualization1D);   // Display the 1D PCA projection
-
-    // Perform PCA analysis on the training samples
-    cv::PCA pca2DTrainSamples(trainSamples, cv::Mat(), 0, 2);
-    cv::PCA pca2DTestSamples(testSamples, cv::Mat(), 0, 2);
-
-    cv::PCA pca3DTrainSamples(trainSamples, cv::Mat(), 0, 3);
-    cv::PCA pca3DTestSamples(testSamples, cv::Mat(), 0, 3);
-
-    // Project the training samples onto the PCA space
-    cv::Mat projected2DTrainSamples = pca2DTrainSamples.project(trainSamples);
-    cv::Mat projected2DTestSamples = pca2DTestSamples.project(testSamples);
-    cv::Mat projected3DTrainSamples = pca3DTrainSamples.project(trainSamples);
-    cv::Mat projected3DTestSamples = pca3DTestSamples.project(testSamples);
-
-    // Visualize 2D PCA Projection
-    int width2D = 600, height2D = 600;
-    cv::Mat TrainVisualization2D = cv::Mat::zeros(height2D, width2D, CV_8UC3);
-    cv::Mat TestVisualization2D = cv::Mat::zeros(height2D, width2D, CV_8UC3);
-
-    // Find the minimum and maximum values in the projected 2D data
-    double minValX2D, maxValX2D, minValY2D, maxValY2D;
-    cv::minMaxLoc(projected2DTrainSamples.col(0), &minValX2D, &maxValX2D);
-    cv::minMaxLoc(projected2DTrainSamples.col(1), &minValY2D, &maxValY2D);
-    cv::minMaxLoc(projected2DTestSamples.col(0), &minValX2D, &maxValX2D);
-    cv::minMaxLoc(projected2DTestSamples.col(1), &minValY2D, &maxValY2D);
-
-    // Visualize the projected 2D training data
-    for (int i = 0; i < projected2DTrainSamples.rows; i++)
-    {
-        float x = (projected2DTrainSamples.at<float>(i, 0) - minValX2D) / (maxValX2D - minValX2D) * (width2D - 40) + 20;  // Normalize and scale the x value
-        float y = (projected2DTrainSamples.at<float>(i, 1) - minValY2D) / (maxValY2D - minValY2D) * (height2D - 40) + 20; // Normalize and scale the y value
-
-        int label = static_cast<int>(trainTarget.at<float>(i, 0));                     // Get the label of the sample
-        cv::Scalar color = label == 7 ? cv::Scalar(255, 0, 0) : cv::Scalar(0, 255, 0); // Set the color based on the label
-
-        cv::circle(TrainVisualization2D, cv::Point(static_cast<int>(x), static_cast<int>(height2D - y)), 3, color, CV_FILLED); // Draw a circle at the projected point
-    }
-
-    // Visualize the projected 2D test data
-    for (int i = 0; i < projected2DTestSamples.rows; i++)
-    {
-        float x = (projected2DTestSamples.at<float>(i, 0) - minValX2D) / (maxValX2D - minValX2D) * (width2D - 40) + 20;  // Normalize and scale the x value
-        float y = (projected2DTestSamples.at<float>(i, 1) - minValY2D) / (maxValY2D - minValY2D) * (height2D - 40) + 20; // Normalize and scale the y value
-
-        int label = static_cast<int>(testTarget.at<float>(i, 0));                      // Get the label of the sample
-        cv::Scalar color = label == 7 ? cv::Scalar(255, 0, 0) : cv::Scalar(0, 255, 0); // Set the color based on the label
-
-        cv::circle(TestVisualization2D, cv::Point(static_cast<int>(x), static_cast<int>(height2D - y)), 3, color, CV_FILLED); // Draw a circle at the projected point
-    }
-
-    cv::imshow("2D PCA Projection Train", TrainVisualization2D); // Display the 2D PCA projection
-    cv::imshow("2D PCA Projection Test", TestVisualization2D);   // Display the 2D PCA projection
-
-    // Visualize 3D PCA Projection (Simulated in 2D)
-    int width3D = 600, height3D = 600;
-    cv::Mat TrainVisualization3D = cv::Mat::zeros(height3D, width3D, CV_8UC3);
-    cv::Mat TestVisualization3D = cv::Mat::zeros(height3D, width3D, CV_8UC3);
-
-    // Find the minimum and maximum values in the projected 3D data
-    double minValX3D, maxValX3D, minValY3D, maxValY3D, minValZ3D, maxValZ3D;
-    cv::minMaxLoc(projected3DTrainSamples.col(0), &minValX3D, &maxValX3D); // Find the minimum and maximum values in the x column
-    cv::minMaxLoc(projected3DTrainSamples.col(1), &minValY3D, &maxValY3D); // Find the minimum and maximum values in the y column
-    cv::minMaxLoc(projected3DTrainSamples.col(2), &minValZ3D, &maxValZ3D); // Find the minimum and maximum values in the z column
-    cv::minMaxLoc(projected3DTestSamples.col(0), &minValX3D, &maxValX3D);  // Find the minimum and maximum values in the x column
-    cv::minMaxLoc(projected3DTestSamples.col(1), &minValY3D, &maxValY3D);  // Find the minimum and maximum values in the y column
-    cv::minMaxLoc(projected3DTestSamples.col(2), &minValZ3D, &maxValZ3D);  // Find the minimum and maximum values in the z column
-
-    // Visualize the projected 3D training data
-    for (int i = 0; i < projected3DTrainSamples.rows; i++)
-    {
-        float x = (projected3DTrainSamples.at<float>(i, 0) - minValX3D) / (maxValX3D - minValX3D) * (width3D - 40) + 20;  // Normalize and scale the x value
-        float y = (projected3DTrainSamples.at<float>(i, 1) - minValY3D) / (maxValY3D - minValY3D) * (height3D - 40) + 20; // Normalize and scale the y value
-        float z = (projected3DTrainSamples.at<float>(i, 2) - minValZ3D) / (maxValZ3D - minValZ3D);                        // Used for depth effect
-
-        int label = static_cast<int>(trainTarget.at<float>(i, 0));                     // Get the label of the sample
-        cv::Scalar color = label == 7 ? cv::Scalar(255, 0, 0) : cv::Scalar(0, 255, 0); // Set the color based on the label
-        int radius = 3 + static_cast<int>(z * 10);                                     // Simulate depth by changing the radius based on z value
-
-        cv::circle(TrainVisualization3D, cv::Point(static_cast<int>(x), static_cast<int>(height3D - y)), radius, color, CV_FILLED); // Draw a circle at the projected point
-    }
-
-    for (int i = 0; i < projected3DTestSamples.rows; i++)
-    {
-        float x = (projected3DTestSamples.at<float>(i, 0) - minValX3D) / (maxValX3D - minValX3D) * (width3D - 40) + 20;  // Normalize and scale the x value
-        float y = (projected3DTestSamples.at<float>(i, 1) - minValY3D) / (maxValY3D - minValY3D) * (height3D - 40) + 20; // Normalize and scale the y value
-        float z = (projected3DTestSamples.at<float>(i, 2) - minValZ3D) / (maxValZ3D - minValZ3D);                        // Used for depth effect
-
-        int label = static_cast<int>(testTarget.at<float>(i, 0));                      // Get the label of the sample
-        cv::Scalar color = label == 7 ? cv::Scalar(255, 0, 0) : cv::Scalar(0, 255, 0); // Set the color based on the label
-        int radius = 3 + static_cast<int>(z * 10);                                     // Simulate depth by changing the radius based on z value
-
-        cv::circle(TestVisualization3D, cv::Point(static_cast<int>(x), static_cast<int>(height3D - y)), radius, color, CV_FILLED); // Draw a circle at the projected point
-    }
-
-    cv::imshow("Simulated 3D PCA Projection Train", TrainVisualization3D);
-    cv::imshow("Simulated 3D PCA Projection Test", TestVisualization3D);
+    std::cout << "Train Mean: " << trainMean[0] << " Train Stddev: " << trainStddev[0] << std::endl;
+    std::cout << "Test Mean: " << testMean[0] << " Test Stddev: " << testStddev[0] << std::endl;
 
     cv::PCA pcaTrainAllDimensions(trainSamples, cv::Mat(), cv::PCA::DATA_AS_ROW);
     cv::PCA pcaTestAllDimensions(testSamples, cv::Mat(), cv::PCA::DATA_AS_ROW);
@@ -376,84 +226,21 @@ int main(int argc, char *argv[])
     }
     outFile.close();
 
-    // Sanity check if the projected data is reasonable
-    // std::cout << "Projected 2D Train Samples dimensions: " << projected2DTrainSamples.rows << "x" << projected2DTrainSamples.cols << std::endl;
-    // std::cout << "Projected 2D Test Samples dimensions: " << projected2DTestSamples.rows << "x" << projected2DTestSamples.cols << std::endl;
-    // std::cout << "Projected 3D Train Samples dimensions: " << projected3DTrainSamples.rows << "x" << projected3DTrainSamples.cols << std::endl;
-    // std::cout << "Projected 3D Test Samples dimensions: " << projected3DTestSamples.rows << "x" << projected3DTestSamples.cols << std::endl;
-
     cv::PCA pcaTrain85D(trainSamples, cv::Mat(), cv::PCA::DATA_AS_ROW, 85);
     cv::PCA pcaTest85D(testSamples, cv::Mat(), cv::PCA::DATA_AS_ROW, 85);
 
     cv::Mat projected85DTrainSamples = pcaTrain85D.project(trainSamples);
     cv::Mat projected85DTestSamples = pcaTest85D.project(testSamples);
 
-
-    LogisticRegression model2D(85);
-    model2D.predict(projected85DTestSamples);
-
-    // Printing out the first few labels for a sanity check
-    // std::cout << "First few labels in the training dataset:" << std::endl;
-    // for (int i = 0; i < std::min(trainTarget.rows, 5); ++i)
-    // {
-    //     float label = trainTarget.at<float>(i, 0);
-    //     std::cout << "Label [" << i << "]: " << label << std::endl;
-    // }
-
-    // std::cout << "\nFirst few labels in the test dataset:" << std::endl;
-    // for (int i = 0; i < std::min(testTarget.rows, 5); ++i)
-    // {
-    //     float label = testTarget.at<float>(i, 0);
-    //     std::cout << "Label [" << i << "]: " << label << std::endl;
-    // }
+    LogisticRegression model85D(85);
 
     // Map 7 to 0 and 8 to 1
     cv::Mat trainLabelsBinary = convertLabels(trainTarget); // Convert the training labels to binary
     cv::Mat testLabelsBinary = convertLabels(testTarget);   // Convert the test labels to binary
 
-    // Print out the first few labels for a sanity check
-    // std::cout << "First few binary labels in the training dataset:" << std::endl;
-    // for (int i = 0; i < std::min(trainLabelsBinary.rows, 5); ++i)
-    // {
-    //     float label = trainLabelsBinary.at<float>(i, 0);
-    //     std::cout << "Label [" << i << "]: " << label << std::endl;
-    // }
-
-    // std::cout << "\nFirst few binary labels in the test dataset:" << std::endl;
-    // for (int i = 0; i < std::min(testLabelsBinary.rows, 5); ++i)
-    // {
-    //     float label = testLabelsBinary.at<float>(i, 0);
-    //     std::cout << "Label [" << i << "]: " << label << std::endl;
-    // }
-
-    model2D.train(10, projected85DTrainSamples, trainLabelsBinary);
-    model2D.predict(projected85DTestSamples);
-
-    // Accuracy calculation
-    cv::Mat predictedLabels;
-
-    cv::threshold(model2D.predictions_, predictedLabels, 0.5, 1, cv::THRESH_BINARY);
-    float accuracy = cv::countNonZero(predictedLabels == testLabelsBinary) / static_cast<float>(testLabelsBinary.rows);
-    std::cout << "Accuracy: " << accuracy << std::endl;
-
-    // Print the prediction values for a sanity check
-    std::cout << "First few predicted labels:" << std::endl;
-    for (int i = 0; i < std::min(model2D.predictions_.rows, 10); ++i)
-    {
-        float label = model2D.predictions_.at<float>(i, 0);
-        std::cout << "Label [" << i << "]: " << label << std::endl;
-    }
-
-    // Print the labels for a sanity check
-    std::cout << "First few test labels:" << std::endl;
-    for (int i = 0; i < std::min(testLabelsBinary.rows, 10); ++i)
-    {
-        float label = testLabelsBinary.at<float>(i, 0);
-        std::cout << "Label [" << i << "]: " << label << std::endl;
-    }
+    model85D.train(18, projected85DTrainSamples, trainLabelsBinary, projected85DTestSamples, testLabelsBinary);
 
     cv::waitKey(0);
 
-    // FIX MAJOR ISSUE WITH TRAINING
     return 0;
 }
