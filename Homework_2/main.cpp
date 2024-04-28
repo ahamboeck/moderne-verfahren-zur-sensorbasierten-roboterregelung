@@ -100,7 +100,11 @@ public:
             float testAccuracy = cv::countNonZero(predictedTestLabels == testLabels) / static_cast<float>(testLabels.rows);
 
             // Output the current epoch's test accuracy to monitor the model's performance over iterations
+<<<<<<< HEAD
             std::cout << "Epoch: " << i << " Test Accuracy: " << testAccuracy << std::endl;
+=======
+            std::cout << "Iteration: " << i << " Test Accuracy: " << testAccuracy << std::endl;
+>>>>>>> 80623c2add7a1b5973ad037ff12f1a70e0a6e57a
         }
     }
 
