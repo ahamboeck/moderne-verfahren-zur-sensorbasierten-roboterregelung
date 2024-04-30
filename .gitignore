@@ -33,3 +33,5 @@
 
 # Custom
 .vscode
+Homework_3/camera_calib_data/calib_v0.*/left*
+Homework_3/camera_calib_data/calib_v0.*/calibrationdata.tar.gz

@@ -65,8 +65,8 @@ void siftDetectorTrain::siftDetect()
     detector->detect(this->undistortedInput_, keypoints);
 
     cv::drawKeypoints(this->undistortedInput_, keypoints, this->output_);
-    cv::imwrite("original.jpg", this->input_);
-    cv::imwrite("undistorted.jpg", this->undistortedInput_);
-    cv::imwrite("sift_result_undistored.jpg", this->output_);
+    cv::imwrite("/home/fhtw_user/moderne-verfahren-zur-sensorbasierten-roboterregelung/Homework_3/data/original/original.jpg", this->input_);
+    cv::imwrite("/home/fhtw_user/moderne-verfahren-zur-sensorbasierten-roboterregelung/Homework_3/data/undistorted/undistorted.jpg", this->undistortedInput_);
+    cv::imwrite("/home/fhtw_user/moderne-verfahren-zur-sensorbasierten-roboterregelung/Homework_3/data/sift/sift_result_undistored.jpg", this->output_);
     std::cout << "SIFT detection completed" << std::endl;
 }
