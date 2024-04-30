@@ -15,3 +15,8 @@ Replace <path-to-image> with the actual path to the image file you want to displ
 ./helloWorld /path/to/your/image.jpg
 ```
 This will open a window displaying the specified image.
+
+## Homework 3
+
+Important:
+Resolution for calibration and distortion must be the same!
