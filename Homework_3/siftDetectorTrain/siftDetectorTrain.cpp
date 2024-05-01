@@ -62,7 +62,12 @@ void siftDetectorTrain::siftDetect()
 {
     cv::Ptr<cv::SiftFeatureDetector> detector = cv::SiftFeatureDetector::create();
     std::vector<cv::KeyPoint> keypoints;
+    cv::Mat descriptors;
+    
     detector->detect(this->undistortedInput_, keypoints);
+    detector->compute(this->undistortedInput_, keypoints, descriptors);
+
+    std::cout << "Detected " << keypoints.size() << " keypoints and computed descriptors." << std::endl;
 
     cv::drawKeypoints(this->undistortedInput_, keypoints, this->output_);
     cv::imwrite("/home/fhtw_user/moderne-verfahren-zur-sensorbasierten-roboterregelung/Homework_3/data/original/original.jpg", this->input_);
