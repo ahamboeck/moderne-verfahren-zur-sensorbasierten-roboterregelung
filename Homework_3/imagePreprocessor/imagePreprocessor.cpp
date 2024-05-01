@@ -59,7 +59,6 @@ KeypointsAndDescriptors imagePreprocessor::siftDetect(cv::Mat &input) const
     cv::Ptr<cv::SiftFeatureDetector> detector = cv::SiftFeatureDetector::create();
     std::vector<cv::KeyPoint> keypoints;
     cv::Mat descriptors;
-
     detector->detect(input, keypoints);
     detector->compute(input, keypoints, descriptors);
 
