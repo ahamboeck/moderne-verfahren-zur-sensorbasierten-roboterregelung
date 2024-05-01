@@ -7,10 +7,10 @@ INCLUDES = -I/usr/local/include/opencv4 \
 LFLAGS = -L/usr/local/lib
 LIBS = -lopencv_core -lopencv_imgcodecs -lopencv_highgui -lopencv_imgproc \
        -lopencv_ml -lopencv_features2d -lopencv_xfeatures2d -lyaml-cpp \
-	   -lopencv_shape -lopencv_videoio -pthread
-SRCS = main.cpp imagePreprocessor/imagePreprocessor.cpp
+	   -lopencv_shape -lopencv_videoio
+SRCS = siftDetectorMatch.cpp
 OBJS = $(SRCS:.cpp=.o)
-MAIN = main
+MAIN = siftDetectorMatch
 
 .PHONY: clean
 
