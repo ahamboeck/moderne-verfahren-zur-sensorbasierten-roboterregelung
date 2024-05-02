@@ -1,8 +1,26 @@
 #include "imagePreprocessor/imagePreprocessor.h"
 
+void onTrackbar(int position, void* userData) {
+    std::pair<cv::Mat*, std::vector<cv::KeyPoint>*> data = *(std::pair<cv::Mat*, std::vector<cv::KeyPoint>*>*)userData;
+    cv::Mat* refImage = data.first;
+    std::vector<cv::KeyPoint>* keypoints = data.second;
+
+    // Redraw the reference image with only the selected keypoint
+    cv::Mat displayImage = refImage->clone();
+    if (!keypoints->empty()) {
+        cv::KeyPoint selectedKeypoint = (*keypoints)[position];
+        cv::circle(displayImage, selectedKeypoint.pt, 3, cv::Scalar(0, 255, 0), 2, cv::LINE_AA);
+        cv::putText(displayImage, std::to_string(position + 1), selectedKeypoint.pt + cv::Point2f(4, 4),
+                    cv::FONT_HERSHEY_DUPLEX, 0.5, cv::Scalar(0, 0, 255), 1);
+    }
+
+    cv::imshow("Matches", displayImage);
+}
+
+
 int main()
 {
-    std::string imagePath = "/home/fhtw_user/moderne-verfahren-zur-sensorbasierten-roboterregelung/Homework_3/data/original/bender.jpg";
+    std::string imagePath = "/home/fhtw_user/moderne-verfahren-zur-sensorbasierten-roboterregelung/Homework_3/data/original/sift_fu.jpg";
     std::string calibrationFilePath = "/home/fhtw_user/moderne-verfahren-zur-sensorbasierten-roboterregelung/Homework_3/camera_calib_data/calib_v0.3/ost.yaml";
     std::string keypointsAndDescriptorsFilePath = "/home/fhtw_user/moderne-verfahren-zur-sensorbasierten-roboterregelung/Homework_3/data/keypoints_and_descriptors.csv";
 
@@ -33,9 +51,9 @@ int main()
     KeypointsAndDescriptors refKpAndDesc = imagePreprocessor.siftDetect(undistortedRefImage);
 
     // Select indices manually
-    std::vector<int> selectedIndices = {292}; // Manually selected indices of keypoints
+    std::vector<int> selectedIndices = {29, 30, 2, 1, 6, 7, 8, 22, 11, 34, 25, 30, 26, 28, 10}; // Manually selected indices of keypoints
     KeypointsAndDescriptors filteredRefKpAndDesc = imagePreprocessor.filterKeypointsAndDescriptors(refKpAndDesc, selectedIndices);
-    // filteredRefKpAndDesc = refKpAndDesc;
+    filteredRefKpAndDesc = refKpAndDesc;
     
     // Annotate keypoints with numbers on the reference image
     cv::Mat annotatedRefImage = undistortedRefImage.clone();
@@ -43,7 +61,7 @@ int main()
     {
         cv::circle(annotatedRefImage, filteredRefKpAndDesc.first[i].pt, 3, cv::Scalar(0, 255, 0), 1, cv::LINE_AA);
         cv::putText(annotatedRefImage, std::to_string(i + 1), filteredRefKpAndDesc.first[i].pt + cv::Point2f(4, 4),
-                    cv::FONT_HERSHEY_SCRIPT_SIMPLEX, 0.7, cv::Scalar(0, 0, 255), 1);
+                    cv::FONT_HERSHEY_DUPLEX, 0.5, cv::Scalar(0, 0, 255), 1);
     }
 
     // Step 3: Initialize the brute force matcher
