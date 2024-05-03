@@ -54,17 +54,32 @@ cv::Mat imagePreprocessor::undistortImage(cv::Mat &input, std::string pathToCali
     return cv::Mat();
 }
 
-KeypointsAndDescriptors imagePreprocessor::siftDetect(cv::Mat &input) const
+KeypointsAndDescriptors imagePreprocessor::siftDetect(cv::Mat &input, cv::Mat &mask, int nFeatures, int nOctaveLayers, 
+                                                    double contrastThreshold, double edgeThreshold, double sigma) const
 {
-    cv::Ptr<cv::SiftFeatureDetector> detector = cv::SiftFeatureDetector::create();
+    cv::Ptr<cv::SiftFeatureDetector> detector = cv::SiftFeatureDetector::create(nFeatures, nOctaveLayers, contrastThreshold, edgeThreshold, sigma);
     std::vector<cv::KeyPoint> keypoints;
     cv::Mat descriptors;
-    detector->detect(input, keypoints);
+    detector->detect(input, keypoints, mask);
     detector->compute(input, keypoints, descriptors);
 
     std::cout << "Detected " << keypoints.size() << " keypoints and computed descriptors." << std::endl;
     std::cout << "SIFT detection completed" << std::endl;
     return {keypoints, descriptors};
+}
+
+// Function to create a rectangular mask
+cv::Mat imagePreprocessor::createRectangleMask(const cv::Size& imageSize, const cv::Size& rectSize) {
+    cv::Mat mask = cv::Mat::zeros(imageSize, CV_8U);  // Create a black mask
+
+    // Calculate the top-left corner to center the rectangle
+    int x = (imageSize.width - rectSize.width) / 2;
+    int y = (imageSize.height - rectSize.height) / 2;
+    cv::Point topLeft(x, y);
+
+    // Draw a white rectangle centered within the mask
+    cv::rectangle(mask, cv::Rect(topLeft, rectSize), cv::Scalar(255), cv::FILLED);
+    return mask;
 }
 
 KeypointsAndDescriptors imagePreprocessor::filterKeypointsAndDescriptors(KeypointsAndDescriptors &KpAndDesc, const std::vector<int>& indices)

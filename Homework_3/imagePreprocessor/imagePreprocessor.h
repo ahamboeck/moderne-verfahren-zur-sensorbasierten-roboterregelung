@@ -24,11 +24,12 @@ class imagePreprocessor
         // Methods
         cv::Mat captureWebcam(cv::VideoCapture* cap = nullptr);
         cv::Mat undistortImage(cv::Mat& input, std::string pathToCalibrationFile);
-        KeypointsAndDescriptors siftDetect(cv::Mat& input) const;
+        KeypointsAndDescriptors siftDetect(cv::Mat &input, cv::Mat &mask, int nFeatures, int nOctaveLayers, 
+                                        double contrastThreshold, double edgeThreshold, double sigma) const;
         KeypointsAndDescriptors filterKeypointsAndDescriptors(KeypointsAndDescriptors &KpAndDesc, const std::vector<int>& indices);
         cv::Mat drawKeypoints(cv::Mat& input, std::vector<cv::KeyPoint>& keypoints) const;
         void keypointsAndDescriptorsToCSV(std::string path, std::vector<cv::KeyPoint>& keypoints, cv::Mat& descriptors) const;
-
+        cv::Mat createRectangleMask(const cv::Size& imageSize, const cv::Size& rectSize);
     private:
         const cv::Mat input_;
         cv::Mat undistortedInput_;
