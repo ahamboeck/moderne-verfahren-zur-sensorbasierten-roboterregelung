@@ -1,121 +1,49 @@
 #include "imagePreprocessor/imagePreprocessor.h"
-#include <opencv2/opencv.hpp>
-#include <opencv2/features2d.hpp>
-#include <opencv2/video/tracking.hpp>
-#include <fstream>
-#include <iostream>
-#include <vector>
-#include <map>
-#include <algorithm>
 
-// Function to calculate variance of feature movements
-double calculateMovementVariance(const std::vector<cv::Point2f>& points) {
-    if (points.size() < 2) return 0.0;
-    cv::Point2f sum(0, 0);
-    for (const auto& point : points) {
-        sum += point;
-    }
-    cv::Point2f mean = sum * (1.0 / points.size());
-    double variance = 0.0;
-    for (const auto& point : points) {
-        cv::Point2f diff = point - mean;
-        variance += diff.x * diff.x + diff.y * diff.y;
-    }
-    return variance / points.size();
-}
-
-// Helper function to read top 15 features from CSV
-std::vector<int> readTopFeatures(const std::string& filepath) {
-    std::ifstream file(filepath);
-    std::vector<std::pair<int, int>> featureCounts;  // Feature index and counts
-    std::string line, idx, count, var;
-    getline(file, line);  // Skip header
-
-    while (getline(file, line)) {
-        std::istringstream iss(line);
-        getline(iss, idx, ',');
-        getline(iss, count, ',');
-        getline(iss, var, ',');
-        featureCounts.push_back({stoi(idx), stoi(count)});
-    }
-
-    // Sort by match count descending
-    sort(featureCounts.begin(), featureCounts.end(), [](const auto& a, const auto& b) {
-        return a.second > b.second;
-    });
-
-    std::vector<int> indices;
-    for (int i = 0; i < 5 && i < featureCounts.size(); ++i) {
-        indices.push_back(featureCounts[i].first);
-    }
-    return indices;
-}
-
-int main() {
+int main()
+{
     std::string imagePath = "/home/fhtw_user/moderne-verfahren-zur-sensorbasierten-roboterregelung/Homework_3/data/original/dragonball.jpg";
     std::string calibrationFilePath = "/home/fhtw_user/moderne-verfahren-zur-sensorbasierten-roboterregelung/Homework_3/camera_calib_data/calib_v0.3/ost.yaml";
     std::string csvFilePath = "/home/fhtw_user/moderne-verfahren-zur-sensorbasierten-roboterregelung/Homework_3/data/matched_features.csv";
 
-    std::vector<int> topFeatureIndices = readTopFeatures(csvFilePath);
+    imagePreprocessor processor;
+    auto cap = processor.initializeVideoCapture(640, 480);
 
-    imagePreprocessor imagePreprocessor;
-    cv::VideoCapture cap(0);
-    cap.set(cv::CAP_PROP_FRAME_WIDTH, 640);
-    cap.set(cv::CAP_PROP_FRAME_HEIGHT, 480);
+    try
+    {
+        cv::Mat refImage = processor.prepareReferenceImage(imagePath, calibrationFilePath);
+        cv::Mat mask = processor.createRectangleMask(refImage.size(), cv::Size(500, 400));
+        auto kpAndDesc = processor.siftDetect(refImage, mask, 150, 3, 0.04, 10, 1.6);
 
-    cv::namedWindow("Matches", cv::WINDOW_NORMAL);
-    cv::resizeWindow("Matches", 800, 600);
+        std::map<int, int> featureMatchCount;
+        std::map<int, std::vector<cv::Point2f>> featureTracks;
+        cv::BFMatcher matcher(cv::NORM_L2, true);
 
-    cv::Ptr<cv::SIFT> sift = cv::SIFT::create(150);
-    cv::Mat refImage = cv::imread(imagePath, cv::IMREAD_GRAYSCALE);
-    if (refImage.empty()) {
-        std::cerr << "Error reading reference image.\n";
+        while (true)
+        {
+            cv::Mat frame = processor.captureWebcam(&cap);
+            if (frame.empty())
+                break;
+
+            cv::Mat currGray = processor.undistortImage(frame, calibrationFilePath);
+            auto currKpAndDesc = processor.siftDetect(currGray, mask, 150, 3, 0.04, 10, 1.6);
+            std::vector<cv::DMatch> matches;
+            matcher.match(kpAndDesc.second, currKpAndDesc.second, matches);
+            std::cout << "Number of matches found: " << matches.size() << std::endl;
+            processor.updateFeatureTracksAndCounts(matches, currKpAndDesc.first, featureMatchCount, featureTracks);
+            processor.displayMatches(refImage, kpAndDesc.first, currGray, currKpAndDesc.first, matches);
+            if (cv::waitKey(25) == 113)
+            { // ASCII value for 'q'
+                std::cout << "Exit requested by user." << std::endl;
+                processor.saveFeatureTracksToCSV(csvFilePath, featureMatchCount, featureTracks, 250);
+                break;
+            }
+        }
+    }
+    catch (const std::runtime_error &e)
+    {
+        std::cerr << e.what() << std::endl;
         return -1;
-    }
-    cv::resize(refImage, refImage, cv::Size(640, 480));
-    cv::Mat undistortedRefImage = imagePreprocessor.undistortImage(refImage, calibrationFilePath);
-    cv::Mat mask = imagePreprocessor.createRectangleMask(undistortedRefImage.size(), cv::Size(500, 400));
-
-    std::vector<cv::KeyPoint> refKeypoints;
-    cv::Mat refDescriptors;
-    sift->detectAndCompute(undistortedRefImage, mask, refKeypoints, refDescriptors);
-
-    // Filter keypoints and descriptors based on the top indices
-    std::vector<cv::KeyPoint> filteredKeypoints;
-    cv::Mat filteredDescriptors;
-    for (int idx : topFeatureIndices) {
-        if (idx < refKeypoints.size()) {
-            filteredKeypoints.push_back(refKeypoints[idx]);
-            filteredDescriptors.push_back(refDescriptors.row(idx));
-        }
-    }
-
-    cv::BFMatcher matcher(cv::NORM_L2, true);
-    cv::Mat frame, currGray, prevGray;
-    std::vector<cv::Point2f> prevPoints;
-    std::vector<uchar> status;
-    std::vector<float> err;
-
-    while (true) {
-        if (!cap.read(frame)) {
-            std::cerr << "Failed to read frame from camera.\n";
-            break;
-        }
-        cv::cvtColor(frame, currGray, cv::COLOR_BGR2GRAY);
-        cv::Mat undistortedCurr = imagePreprocessor.undistortImage(currGray, calibrationFilePath);
-
-        std::vector<cv::KeyPoint> currKeypoints;
-        cv::Mat currDescriptors;
-        sift->detectAndCompute(undistortedCurr, mask, currKeypoints, currDescriptors);
-
-        std::vector<cv::DMatch> matches;
-        matcher.match(filteredDescriptors, currDescriptors, matches);
-
-        // Display results
-        cv::Mat imgMatches;
-        cv::drawMatches(undistortedRefImage, filteredKeypoints, undistortedCurr, currKeypoints, matches, imgMatches);
-        cv::imshow("Matches", imgMatches);
-        if (cv::waitKey(30) >= 0) break;
     }
 
     cv::destroyAllWindows();
