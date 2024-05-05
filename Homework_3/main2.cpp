@@ -9,13 +9,15 @@
 #include <algorithm>
 
 // Helper function to read top 15 features from CSV
-std::vector<int> readTopFeatures(const std::string& filepath) {
+std::vector<int> readTopFeatures(const std::string &filepath)
+{
     std::ifstream file(filepath);
-    std::vector<std::pair<int, int>> featureCounts;  // Feature index and counts
+    std::vector<std::pair<int, int>> featureCounts; // Feature index and counts
     std::string line, idx, count, var;
-    getline(file, line);  // Skip header
+    getline(file, line); // Skip header
 
-    while (getline(file, line)) {
+    while (getline(file, line))
+    {
         std::istringstream iss(line);
         getline(iss, idx, ',');
         getline(iss, count, ',');
@@ -24,18 +26,19 @@ std::vector<int> readTopFeatures(const std::string& filepath) {
     }
 
     // Sort by match count descending
-    sort(featureCounts.begin(), featureCounts.end(), [](const auto& a, const auto& b) {
-        return a.second > b.second;
-    });
+    sort(featureCounts.begin(), featureCounts.end(), [](const auto &a, const auto &b)
+         { return a.second > b.second; });
 
     std::vector<int> indices;
-    for (int i = 0; i < 5 && i < featureCounts.size(); ++i) {
+    for (int i = 0; i < 5 && i < featureCounts.size(); ++i)
+    {
         indices.push_back(featureCounts[i].first);
     }
     return indices;
 }
 
-int main() {
+int main()
+{
     std::string imagePath = "/home/fhtw_user/moderne-verfahren-zur-sensorbasierten-roboterregelung/Homework_3/data/original/dragonball.jpg";
     std::string calibrationFilePath = "/home/fhtw_user/moderne-verfahren-zur-sensorbasierten-roboterregelung/Homework_3/camera_calib_data/calib_v0.3/ost.yaml";
     std::string csvFilePath = "/home/fhtw_user/moderne-verfahren-zur-sensorbasierten-roboterregelung/Homework_3/data/matched_features.csv";
@@ -52,7 +55,8 @@ int main() {
 
     cv::Ptr<cv::SIFT> sift = cv::SIFT::create(150);
     cv::Mat refImage = cv::imread(imagePath, cv::IMREAD_GRAYSCALE);
-    if (refImage.empty()) {
+    if (refImage.empty())
+    {
         std::cerr << "Error reading reference image.\n";
         return -1;
     }
@@ -67,8 +71,10 @@ int main() {
     // Filter keypoints and descriptors based on the top indices
     std::vector<cv::KeyPoint> filteredKeypoints;
     cv::Mat filteredDescriptors;
-    for (int idx : topFeatureIndices) {
-        if (idx < refKeypoints.size()) {
+    for (int idx : topFeatureIndices)
+    {
+        if (idx < refKeypoints.size())
+        {
             filteredKeypoints.push_back(refKeypoints[idx]);
             filteredDescriptors.push_back(refDescriptors.row(idx));
         }
@@ -80,8 +86,10 @@ int main() {
     std::vector<uchar> status;
     std::vector<float> err;
 
-    while (true) {
-        if (!cap.read(frame)) {
+    while (true)
+    {
+        if (!cap.read(frame))
+        {
             std::cerr << "Failed to read frame from camera.\n";
             break;
         }
@@ -99,7 +107,8 @@ int main() {
         cv::Mat imgMatches;
         cv::drawMatches(undistortedRefImage, filteredKeypoints, undistortedCurr, currKeypoints, matches, imgMatches);
         cv::imshow("Matches", imgMatches);
-        if (cv::waitKey(30) >= 0) break;
+        if (cv::waitKey(30) >= 0)
+            break;
     }
 
     cv::destroyAllWindows();

@@ -93,10 +93,6 @@ void imagePreprocessor::displayMatches(const cv::Mat &img1, const std::vector<cv
     cv::Mat imgMatches;
     cv::drawMatches(img1, keypoints1, img2, keypoints2, matches, imgMatches);
     cv::imshow("Matches", imgMatches);
-    if (cv::waitKey(30) >= 0)
-    {
-        throw std::runtime_error("Exit requested.");
-    }
 }
 
 /**
@@ -308,13 +304,19 @@ void imagePreprocessor::updateFeatureTracksAndCounts(const std::vector<cv::DMatc
                                                      std::map<int, int> &featureMatchCount,
                                                      std::map<int, std::vector<cv::Point2f>> &featureTracks)
 {
+    std::cout << "Processing " << matches.size() << " matches." << std::endl;
     for (const auto &match : matches)
     {
         int idx = match.queryIdx; // Index of the feature in the reference image
         featureMatchCount[idx]++;
         featureTracks[idx].push_back(currKeypoints[match.trainIdx].pt);
+        // Debugging output for each match
+        std::cout << "Feature Index: " << idx
+                  << " | Current Match Count: " << featureMatchCount[idx]
+                  << " | Current Point: " << currKeypoints[match.trainIdx].pt << std::endl;
     }
 }
+
 
 /**
  * Saves the feature tracks to a CSV file.
@@ -327,18 +329,22 @@ void imagePreprocessor::updateFeatureTracksAndCounts(const std::vector<cv::DMatc
 void imagePreprocessor::saveFeatureTracksToCSV(const std::string &filePath,
                                                const std::map<int, int> &featureMatchCount,
                                                const std::map<int, std::vector<cv::Point2f>> &featureTracks,
-                                               int minMatches) {
+                                               int minMatches)
+{
     std::ofstream outFile(filePath);
-    if (!outFile) {
+    if (!outFile)
+    {
         std::cerr << "Failed to open file: " << filePath << std::endl;
         return;
     }
 
     int countSaved = 0;
     outFile << "FeatureIndex,MatchCount,Variance\n";
-    for (const auto &track : featureTracks) {
+    for (const auto &track : featureTracks)
+    {
         int count = featureMatchCount.at(track.first);
-        if (count >= minMatches) {
+        if (count >= minMatches)
+        {
             double variance = calculateSiftFeatureMovementVariance(track.second);
             outFile << track.first << "," << count << "," << variance << "\n";
             countSaved++;
@@ -348,3 +354,46 @@ void imagePreprocessor::saveFeatureTracksToCSV(const std::string &filePath,
     std::cout << "Data saved to " << filePath << " with " << countSaved << " entries." << std::endl;
 }
 
+/**
+ * Reads the top N features from a file and returns their indices.
+ *
+ * @param filepath The path to the file containing the features.
+ * @param topN The number of top features to retrieve. Default value is 15.
+ * @return A vector of integers representing the indices of the top features.
+ */
+std::vector<int> imagePreprocessor::readTopFeatures(const std::string &filepath, int topN)
+{
+    std::ifstream file(filepath);
+    if (!file.is_open())
+    {
+        std::cerr << "Failed to open file: " << filepath << std::endl;
+        return {};
+    }
+
+    std::vector<std::tuple<int, int, double>> features; // Stores index, match count, and variance
+    std::string line;
+    std::getline(file, line); // Skip header
+
+    while (std::getline(file, line))
+    {
+        std::istringstream iss(line);
+        std::string idx, count, var;
+        std::getline(iss, idx, ',');
+        std::getline(iss, count, ',');
+        std::getline(iss, var, ',');
+        features.push_back({std::stoi(idx), std::stoi(count), std::stod(var)});
+    }
+
+    // Sort by variance ascending
+    std::sort(features.begin(), features.end(), [](const auto &a, const auto &b)
+              {
+                  return std::get<2>(a) < std::get<2>(b); // Compare variances
+              });
+
+    std::vector<int> indices;
+    for (int i = 0; i < topN && i < features.size(); ++i)
+    {
+        indices.push_back(std::get<0>(features[i])); // Get the index of the feature
+    }
+    return indices;
+}

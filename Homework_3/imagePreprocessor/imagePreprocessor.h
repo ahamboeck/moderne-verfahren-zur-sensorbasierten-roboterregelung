@@ -136,9 +136,14 @@ public:
     cv::Mat createRectangleMask(const cv::Size &imageSize, const cv::Size &rectSize);
 
     /**
-     * @brief Calculates the variance of SIFT feature movement.
-     * @param points The points representing the SIFT feature movement.
-     * @return The variance of the SIFT feature movement.
+     * Calculates the variance of the movement of SIFT features.
+     *
+     * This function takes a vector of 2D points representing SIFT features and calculates the variance
+     * of their movement. The variance is a measure of how spread out the points are from their mean
+     * position, indicating the amount of movement in the feature points.
+     *
+     * @param points A vector of 2D points representing SIFT features.
+     * @return The variance of the movement of the SIFT features.
      */
     double calculateSiftFeatureMovementVariance(const std::vector<cv::Point2f> &points);
 
@@ -153,13 +158,26 @@ public:
                                       std::map<int, int> &featureMatchCount, std::map<int, std::vector<cv::Point2f>> &featureTracks);
 
     /**
-     * @class imagePreprocessor
-     * @brief A class for preprocessing images and saving feature tracks to a CSV file.
+     * Saves the feature tracks to a CSV file.
+     *
+     * @param filePath The file path where the CSV file will be saved.
+     * @param featureMatchCount A map containing the count of matches for each feature.
+     * @param featureTracks A map containing the feature tracks as a vector of 2D points for each feature.
+     * @param minMatches The minimum number of matches required for a feature to be saved.
      */
     void saveFeatureTracksToCSV(const std::string &filePath,
-                                                   const std::map<int, int> &featureMatchCount,
-                                                   const std::map<int, std::vector<cv::Point2f>> &featureTracks,
-                                                   int minMatches);
+                                const std::map<int, int> &featureMatchCount,
+                                const std::map<int, std::vector<cv::Point2f>> &featureTracks,
+                                int minMatches);
+
+    /**
+     * Reads the top N features from the specified file.
+     *
+     * @param filepath The path to the file containing the features.
+     * @param topN The number of top features to read (default is 15).
+     * @return A vector of integers representing the top features.
+     */
+    std::vector<int> readTopFeatures(const std::string &filepath, int topN = 15);
 
 private:
     const cv::Mat input_;               // The input image

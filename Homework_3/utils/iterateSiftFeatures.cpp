@@ -79,10 +79,6 @@ int main() {
         cv::drawMatches(undistortedRefImage, singleRefKeypoint, undistortedFrame, currentKpAndDesc.first, goodMatches, imgMatches, cv::Scalar::all(-1), cv::Scalar::all(-1), std::vector<char>(), cv::DrawMatchesFlags::NOT_DRAW_SINGLE_POINTS);
 
         cv::imshow("Live Matches", imgMatches);
-
-        // Check exit condition
-        if (cv::waitKey(25) >= 0)
-            break;
     }
 
     cv::destroyAllWindows();

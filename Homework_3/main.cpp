@@ -1,49 +1,96 @@
 #include "imagePreprocessor/imagePreprocessor.h"
 
-int main()
+int main(int argc, char **argv)
 {
-    std::string imagePath = "/home/fhtw_user/moderne-verfahren-zur-sensorbasierten-roboterregelung/Homework_3/data/original/dragonball.jpg";
+
+    int nFeatures = 150;
+    int nOctaveLayers = 3;
+    double contrastThreshold = 0.06;
+    int edgeThreshold = 10;
+    double sigma = 1.4;
+
+    int featuresFromCSV = 20;
+    int matchCountThreshold = 1;
+
+    std::string mode = (argc > 1) ? argv[1] : "use";
+    std::cout << "Running in mode: " << mode << std::endl;
+
+    std::string imagePath = "/home/fhtw_user/moderne-verfahren-zur-sensorbasierten-roboterregelung/Homework_3/data/original/bender_new.jpg";
     std::string calibrationFilePath = "/home/fhtw_user/moderne-verfahren-zur-sensorbasierten-roboterregelung/Homework_3/camera_calib_data/calib_v0.3/ost.yaml";
     std::string csvFilePath = "/home/fhtw_user/moderne-verfahren-zur-sensorbasierten-roboterregelung/Homework_3/data/matched_features.csv";
 
     imagePreprocessor processor;
     auto cap = processor.initializeVideoCapture(640, 480);
 
-    try
+    cv::Mat refImage = processor.prepareReferenceImage(imagePath, calibrationFilePath);
+    if (refImage.empty())
     {
-        cv::Mat refImage = processor.prepareReferenceImage(imagePath, calibrationFilePath);
-        cv::Mat mask = processor.createRectangleMask(refImage.size(), cv::Size(500, 400));
-        auto kpAndDesc = processor.siftDetect(refImage, mask, 150, 3, 0.04, 10, 1.6);
+        std::cerr << "Error reading reference image.\n";
+        return -1;
+    }
 
-        std::map<int, int> featureMatchCount;
-        std::map<int, std::vector<cv::Point2f>> featureTracks;
-        cv::BFMatcher matcher(cv::NORM_L2, true);
+    cv::Mat mask = processor.createRectangleMask(refImage.size(), cv::Size(500, 400));
+    auto kpAndDesc = processor.siftDetect(refImage, mask, nFeatures, nOctaveLayers,
+                                          contrastThreshold, edgeThreshold, sigma);
 
-        while (true)
+    // Setup window for display
+    cv::namedWindow("Matches", cv::WINDOW_NORMAL); // Make window resizable
+    cv::resizeWindow("Matches", 800, 600);         // Set initial size
+
+    std::vector<cv::KeyPoint> keypointsToUse = kpAndDesc.first;
+    cv::Mat descriptorsToUse = kpAndDesc.second;
+
+    // If in use mode, filter keypoints and descriptors using the saved CSV file
+    if (mode == "use")
+    {
+        std::cout << "Using saved features from CSV file." << std::endl;
+        std::vector<int> indices = processor.readTopFeatures(csvFilePath, featuresFromCSV);
+        keypointsToUse.clear();
+        descriptorsToUse.release(); // Clear the existing Mat to refill it
+
+        for (size_t index : indices)
         {
-            cv::Mat frame = processor.captureWebcam(&cap);
-            if (frame.empty())
-                break;
-
-            cv::Mat currGray = processor.undistortImage(frame, calibrationFilePath);
-            auto currKpAndDesc = processor.siftDetect(currGray, mask, 150, 3, 0.04, 10, 1.6);
-            std::vector<cv::DMatch> matches;
-            matcher.match(kpAndDesc.second, currKpAndDesc.second, matches);
-            std::cout << "Number of matches found: " << matches.size() << std::endl;
-            processor.updateFeatureTracksAndCounts(matches, currKpAndDesc.first, featureMatchCount, featureTracks);
-            processor.displayMatches(refImage, kpAndDesc.first, currGray, currKpAndDesc.first, matches);
-            if (cv::waitKey(25) == 113)
-            { // ASCII value for 'q'
-                std::cout << "Exit requested by user." << std::endl;
-                processor.saveFeatureTracksToCSV(csvFilePath, featureMatchCount, featureTracks, 250);
-                break;
+            if (index < kpAndDesc.first.size())
+            {
+                keypointsToUse.push_back(kpAndDesc.first[index]);
+                descriptorsToUse.push_back(kpAndDesc.second.row(index));
             }
         }
     }
-    catch (const std::runtime_error &e)
+
+    std::map<int, int> featureMatchCount;
+    std::map<int, std::vector<cv::Point2f>> featureTracks;
+    cv::BFMatcher matcher(cv::NORM_L2, true);
+
+    bool userExit = false;
+    while (!userExit)
     {
-        std::cerr << e.what() << std::endl;
-        return -1;
+        cv::Mat frame = processor.captureWebcam(&cap);
+        if (frame.empty())
+        {
+            std::cout << "Failed to read frame from camera.\n";
+            break;
+        }
+
+        cv::Mat currGray = processor.undistortImage(frame, calibrationFilePath);
+        auto currKpAndDesc = processor.siftDetect(currGray, mask, nFeatures, nOctaveLayers,
+                                                  contrastThreshold, edgeThreshold, sigma);
+        std::vector<cv::DMatch> matches;
+        matcher.match(descriptorsToUse, currKpAndDesc.second, matches);
+        processor.updateFeatureTracksAndCounts(matches, currKpAndDesc.first, featureMatchCount, featureTracks);
+        processor.displayMatches(refImage, keypointsToUse, currGray, currKpAndDesc.first, matches);
+
+        int key = cv::waitKey(40);
+        if ((key & 0xFF) == 'q')
+        {
+            std::cout << "Exit requested by user. Key: " << key << std::endl;
+            if (mode != "use")
+            {
+                std::cout << "Saving data to CSV." << std::endl;
+                processor.saveFeatureTracksToCSV(csvFilePath, featureMatchCount, featureTracks, matchCountThreshold);
+            }
+            userExit = true;
+        }
     }
 
     cv::destroyAllWindows();
