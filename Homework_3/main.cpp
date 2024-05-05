@@ -9,13 +9,13 @@ int main(int argc, char **argv)
     int edgeThreshold = 10;
     double sigma = 1.4;
 
-    int featuresFromCSV = 20;
-    int matchCountThreshold = 1;
+    int featuresFromCSV = 10;
+    int matchCountThreshold = 50;
 
     std::string mode = (argc > 1) ? argv[1] : "use";
     std::cout << "Running in mode: " << mode << std::endl;
 
-    std::string imagePath = "/home/fhtw_user/moderne-verfahren-zur-sensorbasierten-roboterregelung/Homework_3/data/original/bender_new.jpg";
+    std::string imagePath = "/home/fhtw_user/moderne-verfahren-zur-sensorbasierten-roboterregelung/Homework_3/data/original/dasisgut.jpg";
     std::string calibrationFilePath = "/home/fhtw_user/moderne-verfahren-zur-sensorbasierten-roboterregelung/Homework_3/camera_calib_data/calib_v0.3/ost.yaml";
     std::string csvFilePath = "/home/fhtw_user/moderne-verfahren-zur-sensorbasierten-roboterregelung/Homework_3/data/matched_features.csv";
 
@@ -80,7 +80,7 @@ int main(int argc, char **argv)
         processor.updateFeatureTracksAndCounts(matches, currKpAndDesc.first, featureMatchCount, featureTracks);
         processor.displayMatches(refImage, keypointsToUse, currGray, currKpAndDesc.first, matches);
 
-        int key = cv::waitKey(40);
+        int key = cv::waitKey(10);
         if ((key & 0xFF) == 'q')
         {
             std::cout << "Exit requested by user. Key: " << key << std::endl;
