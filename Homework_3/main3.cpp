@@ -6,16 +6,17 @@
 #include <iostream>
 #include <vector>
 #include <map>
-#include <algorithm>
 
 // Function to calculate variance of feature movements
 double calculateMovementVariance(const std::vector<cv::Point2f>& points) {
     if (points.size() < 2) return 0.0;
+
     cv::Point2f sum(0, 0);
     for (const auto& point : points) {
         sum += point;
     }
     cv::Point2f mean = sum * (1.0 / points.size());
+
     double variance = 0.0;
     for (const auto& point : points) {
         cv::Point2f diff = point - mean;
@@ -24,39 +25,10 @@ double calculateMovementVariance(const std::vector<cv::Point2f>& points) {
     return variance / points.size();
 }
 
-// Helper function to read top 15 features from CSV
-std::vector<int> readTopFeatures(const std::string& filepath) {
-    std::ifstream file(filepath);
-    std::vector<std::pair<int, int>> featureCounts;  // Feature index and counts
-    std::string line, idx, count, var;
-    getline(file, line);  // Skip header
-
-    while (getline(file, line)) {
-        std::istringstream iss(line);
-        getline(iss, idx, ',');
-        getline(iss, count, ',');
-        getline(iss, var, ',');
-        featureCounts.push_back({stoi(idx), stoi(count)});
-    }
-
-    // Sort by match count descending
-    sort(featureCounts.begin(), featureCounts.end(), [](const auto& a, const auto& b) {
-        return a.second > b.second;
-    });
-
-    std::vector<int> indices;
-    for (int i = 0; i < 5 && i < featureCounts.size(); ++i) {
-        indices.push_back(featureCounts[i].first);
-    }
-    return indices;
-}
-
 int main() {
     std::string imagePath = "/home/fhtw_user/moderne-verfahren-zur-sensorbasierten-roboterregelung/Homework_3/data/original/dragonball.jpg";
     std::string calibrationFilePath = "/home/fhtw_user/moderne-verfahren-zur-sensorbasierten-roboterregelung/Homework_3/camera_calib_data/calib_v0.3/ost.yaml";
     std::string csvFilePath = "/home/fhtw_user/moderne-verfahren-zur-sensorbasierten-roboterregelung/Homework_3/data/matched_features.csv";
-
-    std::vector<int> topFeatureIndices = readTopFeatures(csvFilePath);
 
     imagePreprocessor imagePreprocessor;
     cv::VideoCapture cap(0);
@@ -80,16 +52,8 @@ int main() {
     cv::Mat refDescriptors;
     sift->detectAndCompute(undistortedRefImage, mask, refKeypoints, refDescriptors);
 
-    // Filter keypoints and descriptors based on the top indices
-    std::vector<cv::KeyPoint> filteredKeypoints;
-    cv::Mat filteredDescriptors;
-    for (int idx : topFeatureIndices) {
-        if (idx < refKeypoints.size()) {
-            filteredKeypoints.push_back(refKeypoints[idx]);
-            filteredDescriptors.push_back(refDescriptors.row(idx));
-        }
-    }
-
+    std::map<int, int> featureMatchCount;
+    std::map<int, std::vector<cv::Point2f>> featureTracks;
     cv::BFMatcher matcher(cv::NORM_L2, true);
     cv::Mat frame, currGray, prevGray;
     std::vector<cv::Point2f> prevPoints;
@@ -109,14 +73,34 @@ int main() {
         sift->detectAndCompute(undistortedCurr, mask, currKeypoints, currDescriptors);
 
         std::vector<cv::DMatch> matches;
-        matcher.match(filteredDescriptors, currDescriptors, matches);
+        matcher.match(refDescriptors, currDescriptors, matches);
+
+        // Update feature tracks and counts based on matches
+        for (auto& match : matches) {
+            int idx = match.queryIdx;
+            featureMatchCount[idx]++;
+            featureTracks[idx].push_back(currKeypoints[match.trainIdx].pt);
+        }
 
         // Display results
         cv::Mat imgMatches;
-        cv::drawMatches(undistortedRefImage, filteredKeypoints, undistortedCurr, currKeypoints, matches, imgMatches);
+        cv::drawMatches(undistortedRefImage, refKeypoints, undistortedCurr, currKeypoints, matches, imgMatches);
         cv::imshow("Matches", imgMatches);
         if (cv::waitKey(30) >= 0) break;
     }
+
+    // Evaluate variance and save results
+    std::ofstream outFile(csvFilePath);
+    outFile << "FeatureIndex,MatchCount,Variance\n";
+    int minMatches = 500;  // Threshold for "most often" criteria
+    for (auto& track : featureTracks) {
+        double variance = calculateMovementVariance(track.second);
+        int count = featureMatchCount[track.first];
+        if (count >= minMatches) {
+            outFile << track.first << "," << count << "," << variance << "\n";
+        }
+    }
+    outFile.close();
 
     cv::destroyAllWindows();
     return 0;

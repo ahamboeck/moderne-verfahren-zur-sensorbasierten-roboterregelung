@@ -33,6 +33,7 @@ int main() {
         std::cerr << "Error reading reference image." << std::endl;
         return -1;
     }
+    
     cv::resize(refImage, refImage, cv::Size(640, 480));
     cv::Mat undistortedRefImage = imagePreprocessor.undistortImage(refImage, calibrationFilePath);
     KeypointsAndDescriptors refKpAndDesc = imagePreprocessor.siftDetect(undistortedRefImage);
