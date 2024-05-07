@@ -3,14 +3,14 @@
 int main(int argc, char **argv)
 {
 
-    int nFeatures = 150;
+    int nFeatures = 0;
     int nOctaveLayers = 3;
-    double contrastThreshold = 0.06;
-    int edgeThreshold = 10;
-    double sigma = 1.4;
+    double contrastThreshold = 0.04;
+    int edgeThreshold = 8;
+    double sigma = 1.6;
 
-    int featuresFromCSV = 5;
-    int matchCountThreshold = 50;
+    int featuresFromCSV = 30;
+    int matchCountThreshold = 150;
 
     std::string mode = (argc > 1) ? argv[1] : "use";
     std::cout << "Running in mode: " << mode << std::endl;
@@ -52,7 +52,7 @@ int main(int argc, char **argv)
     if (mode == "use")
     {
         std::cout << "Using saved features from CSV file." << std::endl;
-        std::vector<int> indices = processor.readTopFeatures(bestFeaturesPath, featuresFromCSV, SortCriteria::Variance);
+        std::vector<int> indices = processor.readTopFeatures(bestFeaturesPath, featuresFromCSV, SortCriteria::AverageDisplacement);
         keypointsToUse.clear();
         descriptorsToUse.release(); // Clear the existing Mat to refill it
 
