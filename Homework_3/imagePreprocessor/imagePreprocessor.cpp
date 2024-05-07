@@ -214,6 +214,12 @@ KeypointsAndDescriptors imagePreprocessor::filterKeypointsAndDescriptors(Keypoin
     return {filteredKeypoints, filteredDescriptors};
 }
 
+/**
+ * Reads a list of indices from a CSV file.
+ *
+ * @param filepath The path to the CSV file.
+ * @return A vector containing the indices read from the file.
+ */
 std::vector<int> imagePreprocessor::readIndicesFromCSV(const std::string &filepath)
 {
     std::vector<int> indices;

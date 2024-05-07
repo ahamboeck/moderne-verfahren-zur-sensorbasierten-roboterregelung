@@ -9,7 +9,7 @@ int main(int argc, char **argv)
     int edgeThreshold = 8;
     double sigma = 1.6;
 
-    int featuresFromCSV = 30;
+    int featuresFromCSV = 75;
     int matchCountThreshold = 150;
 
     std::string mode = (argc > 1) ? argv[1] : "use";
@@ -19,7 +19,7 @@ int main(int argc, char **argv)
     std::string basePath = "/home/fhtw_user/moderne-verfahren-zur-sensorbasierten-roboterregelung/Homework_3/";
 
     // Derived paths from the base path
-    std::string imagePath = basePath + "data/original/anime_goodsetup.jpg";
+    std::string imagePath = basePath + "data/original/bender_good_setup.jpg";
     std::string calibrationFilePath = basePath + "camera_calib_data/calib_v0.4/ost.yaml";
     std::string bestFeaturesPath = basePath + "data/matched_features.csv";
     std::string allFeaturesCSVPath = basePath + "data/keypoints_and_descriptors.csv";
@@ -51,10 +51,10 @@ int main(int argc, char **argv)
 
     if (mode == "use")
     {
-        std::cout << "Using filtered indices from CSV file." << std::endl;
-        std::vector<int> filterIndices = processor.readIndicesFromCSV(filterIndicesPath);
+        std::cout << "Using the best matches from CSV file." << std::endl;
+        std::vector<int> bestIndices = processor.readTopFeatures(bestFeaturesPath, featuresFromCSV, SortCriteria::AverageDisplacement);
 
-        auto filteredKpAndDesc = processor.filterKeypointsAndDescriptors(kpAndDesc, filterIndices);
+        auto filteredKpAndDesc = processor.filterKeypointsAndDescriptors(kpAndDesc, bestIndices);
         keypointsToUse = filteredKpAndDesc.first;
         descriptorsToUse = filteredKpAndDesc.second;
 
@@ -62,7 +62,7 @@ int main(int argc, char **argv)
         for (size_t i = 0; i < keypointsToUse.size(); ++i)
         {
             cv::Point2f position = keypointsToUse[i].pt;
-            std::string label = std::to_string(filterIndices[i]);
+            std::string label = std::to_string(bestIndices[i]);
             cv::putText(refImage, label, position, cv::FONT_HERSHEY_SIMPLEX, 0.5, cv::Scalar(0, 0, 255), 1, cv::LINE_AA);
         }
     }
@@ -109,7 +109,7 @@ int main(int argc, char **argv)
         if ((key & 0xFF) == 'q')
         {
             std::cout << "Exit requested by user. Key: " << key << std::endl;
-            if (mode != "use")
+            if (mode == "save")
             {
                 std::cout << "Saving data to CSV." << std::endl;
                 processor.saveFeatureTracksToCSV(bestFeaturesPath, featureMatchCount, featureTracks, matchCountThreshold);
