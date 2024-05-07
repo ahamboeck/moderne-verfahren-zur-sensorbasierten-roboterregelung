@@ -16,7 +16,13 @@
 #include <opencv2/video/tracking.hpp>
 
 using KeypointsAndDescriptors = std::pair<std::vector<cv::KeyPoint>, cv::Mat>;
-enum class SortCriteria { MatchCount, Variance, MaxDisplacement, AverageDisplacement };
+enum class SortCriteria
+{
+    MatchCount,
+    Variance,
+    MaxDisplacement,
+    AverageDisplacement
+};
 /**
  * @class imagePreprocessor
  * @brief The imagePreprocessor class provides methods for preprocessing images, such as capturing webcam frames,
@@ -112,6 +118,17 @@ public:
      * @return The filtered KeypointsAndDescriptors object.
      */
     KeypointsAndDescriptors filterKeypointsAndDescriptors(KeypointsAndDescriptors &KpAndDesc, const std::vector<int> &indices);
+
+    /**
+     * Reads indices from a CSV file.
+     *
+     * This function reads a CSV file located at the specified filepath and returns a vector
+     * containing the indices read from the file.
+     *
+     * @param filepath The path to the CSV file.
+     * @return A vector of integers representing the indices read from the CSV file.
+     */
+    std::vector<int> readIndicesFromCSV(const std::string &filepath);
 
     /**
      * @brief Draws keypoints on an input image.

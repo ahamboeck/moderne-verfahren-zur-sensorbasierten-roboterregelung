@@ -23,7 +23,8 @@ int main(int argc, char **argv)
     std::string calibrationFilePath = basePath + "camera_calib_data/calib_v0.4/ost.yaml";
     std::string bestFeaturesPath = basePath + "data/matched_features.csv";
     std::string allFeaturesCSVPath = basePath + "data/keypoints_and_descriptors.csv";
-
+    std::string filterIndicesPath = basePath + "data/filtered_indices.csv";
+    
     imagePreprocessor processor;
     auto cap = processor.initializeVideoCapture(1920, 1080);
 
@@ -43,27 +44,43 @@ int main(int argc, char **argv)
 
     // Setup window for display
     cv::namedWindow("Matches", cv::WINDOW_NORMAL); // Make window resizable
-    cv::resizeWindow("Matches", 1920, 1080);         // Set initial size
+    cv::resizeWindow("Matches", 1920, 1080);       // Set initial size
 
     std::vector<cv::KeyPoint> keypointsToUse = kpAndDesc.first;
     cv::Mat descriptorsToUse = kpAndDesc.second;
 
-    // If in use mode, filter keypoints and descriptors using the saved CSV file
     if (mode == "use")
     {
-        std::cout << "Using saved features from CSV file." << std::endl;
-        std::vector<int> indices = processor.readTopFeatures(bestFeaturesPath, featuresFromCSV, SortCriteria::AverageDisplacement);
-        keypointsToUse.clear();
-        descriptorsToUse.release(); // Clear the existing Mat to refill it
+        std::cout << "Using filtered indices from CSV file." << std::endl;
+        std::vector<int> filterIndices = processor.readIndicesFromCSV(filterIndicesPath);
 
-        for (size_t index : indices)
+        auto filteredKpAndDesc = processor.filterKeypointsAndDescriptors(kpAndDesc, filterIndices);
+        keypointsToUse = filteredKpAndDesc.first;
+        descriptorsToUse = filteredKpAndDesc.second;
+
+        // Annotate keypoints with indices on the reference image
+        for (size_t i = 0; i < keypointsToUse.size(); ++i)
         {
-            if (index < kpAndDesc.first.size())
-            {
-                keypointsToUse.push_back(kpAndDesc.first[index]);
-                descriptorsToUse.push_back(kpAndDesc.second.row(index));
-            }
+            cv::Point2f position = keypointsToUse[i].pt;
+            std::string label = std::to_string(filterIndices[i]);
+            cv::putText(refImage, label, position, cv::FONT_HERSHEY_SIMPLEX, 0.5, cv::Scalar(0, 0, 255), 1, cv::LINE_AA);
         }
+    }
+    else if (mode == "filter")
+    {
+        // If in "filter" mode, process the filtered indices file
+        std::cout << "Filtering keypoints and descriptors using CSV file." << std::endl;
+        std::vector<int> filterIndices = processor.readIndicesFromCSV(filterIndicesPath);
+
+        auto filteredKpAndDesc = processor.filterKeypointsAndDescriptors(kpAndDesc, filterIndices);
+        keypointsToUse = filteredKpAndDesc.first;
+        descriptorsToUse = filteredKpAndDesc.second;
+    }
+    else
+    {
+        // Default behavior for other modes
+        keypointsToUse = kpAndDesc.first;
+        descriptorsToUse = kpAndDesc.second;
     }
 
     std::map<int, int> featureMatchCount;

@@ -214,6 +214,33 @@ KeypointsAndDescriptors imagePreprocessor::filterKeypointsAndDescriptors(Keypoin
     return {filteredKeypoints, filteredDescriptors};
 }
 
+std::vector<int> imagePreprocessor::readIndicesFromCSV(const std::string &filepath)
+{
+    std::vector<int> indices;
+    std::ifstream file(filepath);
+    if (!file.is_open())
+    {
+        std::cerr << "Failed to open indices file: " << filepath << std::endl;
+        return indices;
+    }
+
+    std::string line;
+    while (std::getline(file, line))
+    {
+        try
+        {
+            indices.push_back(std::stoi(line));
+        }
+        catch (const std::exception &e)
+        {
+            std::cerr << "Invalid index in CSV: " << line << std::endl;
+        }
+    }
+
+    return indices;
+}
+
+
 /**
  * Draws keypoints on the input image and returns the resulting image.
  *
