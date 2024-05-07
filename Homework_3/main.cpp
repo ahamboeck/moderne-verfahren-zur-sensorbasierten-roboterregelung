@@ -24,9 +24,10 @@ int main(int argc, char **argv)
     std::string bestFeaturesPath = basePath + "data/matched_features.csv";
     std::string allFeaturesCSVPath = basePath + "data/keypoints_and_descriptors.csv";
     std::string filterIndicesPath = basePath + "data/filtered_indices.csv";
-    
+    std::string videoPath = basePath + "data/video/bender_video.webm";
+
     imagePreprocessor processor;
-    auto cap = processor.initializeVideoCapture(1920, 1080);
+    auto cap = processor.initializeVideoCapture(1920, 1080, videoPath);
 
     cv::Mat refImage = processor.prepareReferenceImage(imagePath, calibrationFilePath, 1920, 1080);
     if (refImage.empty())

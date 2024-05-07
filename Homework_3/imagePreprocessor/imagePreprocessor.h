@@ -85,9 +85,10 @@ public:
      *
      * @param width The desired width of the video capture.
      * @param height The desired height of the video capture.
+     * @param videoFilePath The path to the video file to capture frames from.
      * @return A `cv::VideoCapture` object initialized with the specified width and height.
      */
-    cv::VideoCapture initializeVideoCapture(int width, int height);
+    cv::VideoCapture initializeVideoCapture(int width, int height, const std::string &videoFilePath);
 
     /**
      * @brief Undistorts an input image using camera calibration data.

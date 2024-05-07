@@ -43,17 +43,39 @@ cv::Mat imagePreprocessor::captureWebcam(cv::VideoCapture *cap)
 }
 
 /**
- * Initializes the video capture with the specified width and height.
+ * Initializes the video capture from either a webcam or a video file.
  *
  * @param width The desired width of the captured video frames.
  * @param height The desired height of the captured video frames.
- * @return The initialized cv::VideoCapture object.
+ * @param videoFilePath The path to a video file to read from. If empty, the default webcam (device index 0) will be used.
+ * @return The initialized cv::VideoCapture object, or a non-opened object if initialization fails.
  */
-cv::VideoCapture imagePreprocessor::initializeVideoCapture(int width, int height)
+cv::VideoCapture imagePreprocessor::initializeVideoCapture(int width, int height, const std::string &videoFilePath)
 {
-    cv::VideoCapture cap(0);
+    cv::VideoCapture cap;
+
+    if (videoFilePath.empty())
+    {
+        // Open the default webcam (device index 0)
+        cap.open(0);
+    }
+    else
+    {
+        // Open the provided video file
+        cap.open(videoFilePath);
+    }
+
+    // Verify that the capture object has been successfully opened
+    if (!cap.isOpened())
+    {
+        std::cerr << "Error: Could not open the camera or video file" << std::endl;
+        return cv::VideoCapture();  // Return a non-opened VideoCapture object
+    }
+
+    // Set the desired width and height properties (works for webcams only)
     cap.set(cv::CAP_PROP_FRAME_WIDTH, width);
     cap.set(cv::CAP_PROP_FRAME_HEIGHT, height);
+
     return cap;
 }
 
