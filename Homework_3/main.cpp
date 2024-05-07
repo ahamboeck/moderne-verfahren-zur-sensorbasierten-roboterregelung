@@ -15,9 +15,14 @@ int main(int argc, char **argv)
     std::string mode = (argc > 1) ? argv[1] : "use";
     std::cout << "Running in mode: " << mode << std::endl;
 
-    std::string imagePath = "/home/fhtw_user/moderne-verfahren-zur-sensorbasierten-roboterregelung/Homework_3/data/original/dasisgut.jpg";
-    std::string calibrationFilePath = "/home/fhtw_user/moderne-verfahren-zur-sensorbasierten-roboterregelung/Homework_3/camera_calib_data/calib_v0.3/ost.yaml";
-    std::string csvFilePath = "/home/fhtw_user/moderne-verfahren-zur-sensorbasierten-roboterregelung/Homework_3/data/matched_features.csv";
+    // Define the base path for all files
+    std::string basePath = "/home/fhtw_user/moderne-verfahren-zur-sensorbasierten-roboterregelung/Homework_3/";
+
+    // Derived paths from the base path
+    std::string imagePath = basePath + "data/original/dasisgut.jpg";
+    std::string calibrationFilePath = basePath + "camera_calib_data/calib_v0.3/ost.yaml";
+    std::string bestFeaturesPath = basePath + "data/matched_features.csv";
+    std::string allFeaturesCSVPath = basePath + "data/keypoints_and_descriptors.csv";
 
     imagePreprocessor processor;
     auto cap = processor.initializeVideoCapture(640, 480);
@@ -33,6 +38,9 @@ int main(int argc, char **argv)
     auto kpAndDesc = processor.siftDetect(refImage, mask, nFeatures, nOctaveLayers,
                                           contrastThreshold, edgeThreshold, sigma);
 
+    // Save keypoints and descriptors to CSV
+    processor.keypointsAndDescriptorsToCSV(allFeaturesCSVPath, kpAndDesc.first, kpAndDesc.second);
+
     // Setup window for display
     cv::namedWindow("Matches", cv::WINDOW_NORMAL); // Make window resizable
     cv::resizeWindow("Matches", 800, 600);         // Set initial size
@@ -44,7 +52,7 @@ int main(int argc, char **argv)
     if (mode == "use")
     {
         std::cout << "Using saved features from CSV file." << std::endl;
-        std::vector<int> indices = processor.readTopFeatures(csvFilePath, featuresFromCSV);
+        std::vector<int> indices = processor.readTopFeatures(bestFeaturesPath, featuresFromCSV);
         keypointsToUse.clear();
         descriptorsToUse.release(); // Clear the existing Mat to refill it
 
@@ -87,7 +95,7 @@ int main(int argc, char **argv)
             if (mode != "use")
             {
                 std::cout << "Saving data to CSV." << std::endl;
-                processor.saveFeatureTracksToCSV(csvFilePath, featureMatchCount, featureTracks, matchCountThreshold);
+                processor.saveFeatureTracksToCSV(bestFeaturesPath, featureMatchCount, featureTracks, matchCountThreshold);
             }
             userExit = true;
         }

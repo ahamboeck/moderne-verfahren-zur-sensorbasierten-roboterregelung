@@ -244,7 +244,7 @@ void imagePreprocessor::keypointsAndDescriptorsToCSV(std::string path, std::vect
     }
 
     // Write header
-    file << "X,Y,Size,Angle,Response,Octave,ClassID,";
+    file << "Index,X,Y,Size,Angle,Response,Octave,ClassID,";
     for (int j = 0; j < descriptors.cols; j++)
     {
         file << "D" << j << ",";
@@ -254,7 +254,7 @@ void imagePreprocessor::keypointsAndDescriptorsToCSV(std::string path, std::vect
     // Write data
     for (size_t i = 0; i < keypoints.size(); i++)
     {
-        file << keypoints[i].pt.x << "," << keypoints[i].pt.y << "," << keypoints[i].size << "," << keypoints[i].angle << "," << keypoints[i].response << "," << keypoints[i].octave << "," << keypoints[i].class_id << ",";
+        file << i << "," << keypoints[i].pt.x << "," << keypoints[i].pt.y << "," << keypoints[i].size << "," << keypoints[i].angle << "," << keypoints[i].response << "," << keypoints[i].octave << "," << keypoints[i].class_id << ",";
         for (int j = 0; j < descriptors.cols; j++)
         {
             file << descriptors.at<float>(i, j) << ",";
@@ -263,8 +263,9 @@ void imagePreprocessor::keypointsAndDescriptorsToCSV(std::string path, std::vect
     }
 
     file.close();
-    std::cout << "Keypoints and descriptors written to " << path << std::endl;
+    std::cout << "Keypoints and descriptors with indices written to " << path << std::endl;
 }
+
 
 /**
  * Calculates the variance of the SIFT feature movement based on a vector of points.
