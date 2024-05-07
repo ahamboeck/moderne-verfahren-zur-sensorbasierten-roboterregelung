@@ -63,17 +63,19 @@ cv::VideoCapture imagePreprocessor::initializeVideoCapture(int width, int height
  *
  * @param imagePath The file path of the reference image.
  * @param calibrationPath The file path of the calibration data.
+ * @param width The desired width of the reference image.
+ * @param height The desired height of the reference image.
  * @return The preprocessed reference image.
  * @throws std::runtime_error if there is an error reading the reference image.
  */
-cv::Mat imagePreprocessor::prepareReferenceImage(const std::string &imagePath, const std::string &calibrationPath)
+cv::Mat imagePreprocessor::prepareReferenceImage(const std::string &imagePath, const std::string &calibrationPath, int width, int height)
 {
     cv::Mat refImage = cv::imread(imagePath, cv::IMREAD_GRAYSCALE);
     if (refImage.empty())
     {
         throw std::runtime_error("Error reading reference image.");
     }
-    cv::resize(refImage, refImage, cv::Size(640, 480));
+    cv::resize(refImage, refImage, cv::Size(width, height));
     return undistortImage(refImage, calibrationPath);
 }
 
@@ -266,7 +268,6 @@ void imagePreprocessor::keypointsAndDescriptorsToCSV(std::string path, std::vect
     std::cout << "Keypoints and descriptors with indices written to " << path << std::endl;
 }
 
-
 /**
  * Calculates the variance of the SIFT feature movement based on a vector of points.
  *
@@ -277,19 +278,21 @@ double imagePreprocessor::calculateSiftFeatureMovementVariance(const std::vector
 {
     if (points.size() < 2)
         return 0.0;
-    cv::Point2f sum(0, 0);
+
+    cv::Point2f mean(0, 0);
+    double m2 = 0.0;
+    int n = 0;
+
     for (const auto &point : points)
     {
-        sum += point;
+        n++;
+        cv::Point2f delta = point - mean;
+        mean += delta / n;
+        cv::Point2f delta2 = point - mean;
+        m2 += delta.x * delta2.x + delta.y * delta2.y;
     }
-    cv::Point2f mean = sum * (1.0 / points.size());
-    double variance = 0.0;
-    for (const auto &point : points)
-    {
-        cv::Point2f diff = point - mean;
-        variance += diff.x * diff.x + diff.y * diff.y;
-    }
-    return variance / points.size();
+
+    return m2 / n;
 }
 
 /**
@@ -318,9 +321,9 @@ void imagePreprocessor::updateFeatureTracksAndCounts(const std::vector<cv::DMatc
     }
 }
 
-
 /**
- * Saves the feature tracks to a CSV file.
+ * Saves the feature tracks with extended metrics to a CSV file.
+ * This includes feature index, match count, variance, max displacement, and average displacement.
  *
  * @param filePath The path to the CSV file.
  * @param featureMatchCount A map containing the match count for each feature index.
@@ -339,30 +342,47 @@ void imagePreprocessor::saveFeatureTracksToCSV(const std::string &filePath,
         return;
     }
 
+    // Write the header for the CSV file
+    outFile << "FeatureIndex,MatchCount,Variance,MaxDisplacement,AverageDisplacement\n";
     int countSaved = 0;
-    outFile << "FeatureIndex,MatchCount,Variance\n";
+
     for (const auto &track : featureTracks)
     {
         int count = featureMatchCount.at(track.first);
         if (count >= minMatches)
         {
             double variance = calculateSiftFeatureMovementVariance(track.second);
-            outFile << track.first << "," << count << "," << variance << "\n";
+            double maxDisplacement = 0.0;
+            double totalDisplacement = 0.0;
+            cv::Point2f initialPoint = track.second.front();
+
+            for (const auto &point : track.second)
+            {
+                double displacement = cv::norm(point - initialPoint);
+                maxDisplacement = std::max(maxDisplacement, displacement);
+                totalDisplacement += displacement;
+            }
+            double averageDisplacement = totalDisplacement / track.second.size();
+
+            // Write the computed data to the CSV file
+            outFile << track.first << "," << count << "," << variance << "," << maxDisplacement << "," << averageDisplacement << "\n";
             countSaved++;
         }
     }
+
     outFile.close();
-    std::cout << "Data saved to " << filePath << " with " << countSaved << " entries." << std::endl;
+    std::cout << "Extended feature track data saved to " << filePath << " with " << countSaved << " entries." << std::endl;
 }
 
 /**
- * Reads the top N features from a file and returns their indices.
+ * Reads the top N features from a file and returns their indices based on a specific sorting criterion.
  *
  * @param filepath The path to the file containing the features.
  * @param topN The number of top features to retrieve. Default value is 15.
+ * @param criteria The criteria by which to sort the features.
  * @return A vector of integers representing the indices of the top features.
  */
-std::vector<int> imagePreprocessor::readTopFeatures(const std::string &filepath, int topN)
+std::vector<int> imagePreprocessor::readTopFeatures(const std::string &filepath, int topN, SortCriteria criteria)
 {
     std::ifstream file(filepath);
     if (!file.is_open())
@@ -371,30 +391,61 @@ std::vector<int> imagePreprocessor::readTopFeatures(const std::string &filepath,
         return {};
     }
 
-    std::vector<std::tuple<int, int, double>> features; // Stores index, match count, and variance
+    // Store index, match count, variance, max displacement, and average displacement
+    std::vector<std::tuple<int, int, double, double, double>> features;
     std::string line;
-    std::getline(file, line); // Skip header
+    std::getline(file, line); // Skip the header
 
+    // Read each line and parse feature details
     while (std::getline(file, line))
     {
         std::istringstream iss(line);
-        std::string idx, count, var;
+        std::string idx, count, var, maxDisplacement, avgDisplacement;
         std::getline(iss, idx, ',');
         std::getline(iss, count, ',');
         std::getline(iss, var, ',');
-        features.push_back({std::stoi(idx), std::stoi(count), std::stod(var)});
+        std::getline(iss, maxDisplacement, ',');
+        std::getline(iss, avgDisplacement, ',');
+
+        // Add the parsed data to the feature list
+        features.emplace_back(std::stoi(idx), std::stoi(count), std::stod(var), std::stod(maxDisplacement), std::stod(avgDisplacement));
     }
 
-    // Sort by variance ascending
-    std::sort(features.begin(), features.end(), [](const auto &a, const auto &b)
-              {
-                  return std::get<2>(a) < std::get<2>(b); // Compare variances
-              });
+    // Lambda comparator to sort by the selected criteria
+    auto compare = [criteria](const auto &a, const auto &b)
+    {
+        switch (criteria)
+        {
+        case SortCriteria::MatchCount:
+            return std::get<1>(a) < std::get<1>(b);
+        case SortCriteria::Variance:
+            return std::get<2>(a) < std::get<2>(b);
+        case SortCriteria::MaxDisplacement:
+            return std::get<3>(a) < std::get<3>(b);
+        case SortCriteria::AverageDisplacement:
+            return std::get<4>(a) < std::get<4>(b);
+        default:
+            return true; // Default comparison (won't actually be used)
+        }
+    };
 
+    // Sort based on the chosen criteria
+    std::sort(features.begin(), features.end(), compare);
+
+    // Extract the top N indices
     std::vector<int> indices;
-    for (int i = 0; i < topN && i < features.size(); ++i)
+    for (int i = 0; i < topN && i < static_cast<int>(features.size()); ++i)
     {
         indices.push_back(std::get<0>(features[i])); // Get the index of the feature
     }
+
+    // Print the indices
+    std::cout << "Top " << indices.size() << " feature indices based on the selected criterion: ";
+    for (int index : indices)
+    {
+        std::cout << index << " ";
+    }
+    std::cout << std::endl;
+
     return indices;
 }

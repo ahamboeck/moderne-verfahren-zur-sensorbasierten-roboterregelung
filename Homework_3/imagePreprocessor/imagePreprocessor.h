@@ -16,7 +16,7 @@
 #include <opencv2/video/tracking.hpp>
 
 using KeypointsAndDescriptors = std::pair<std::vector<cv::KeyPoint>, cv::Mat>;
-
+enum class SortCriteria { MatchCount, Variance, MaxDisplacement, AverageDisplacement };
 /**
  * @class imagePreprocessor
  * @brief The imagePreprocessor class provides methods for preprocessing images, such as capturing webcam frames,
@@ -55,9 +55,11 @@ public:
      *
      * @param imagePath The path to the reference image.
      * @param calibrationPath The path to the calibration file.
+     * @param width The desired width of the reference image.
+     * @param height The desired height of the reference image.
      * @return The preprocessed reference image.
      */
-    cv::Mat prepareReferenceImage(const std::string &imagePath, const std::string &calibrationPath);
+    cv::Mat prepareReferenceImage(const std::string &imagePath, const std::string &calibrationPathm, int width, int height);
 
     /**
      * Displays the matches between two images along with their corresponding keypoints.
@@ -171,13 +173,14 @@ public:
                                 int minMatches);
 
     /**
-     * Reads the top N features from the specified file.
+     * Reads the top N features from a file and returns their indices based on a specific sorting criterion.
      *
      * @param filepath The path to the file containing the features.
-     * @param topN The number of top features to read (default is 15).
-     * @return A vector of integers representing the top features.
+     * @param topN The number of top features to retrieve. Default value is 15.
+     * @param criteria The criteria by which to sort the features.
+     * @return A vector of integers representing the indices of the top features.
      */
-    std::vector<int> readTopFeatures(const std::string &filepath, int topN = 15);
+    std::vector<int> readTopFeatures(const std::string &filepath, int topN, SortCriteria criteria);
 
 private:
     const cv::Mat input_;               // The input image
