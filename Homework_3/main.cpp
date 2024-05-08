@@ -23,8 +23,8 @@ int main(int argc, char **argv)
     std::string calibrationFilePath = basePath + "camera_calib_data/calib_v0.4/ost.yaml";
     std::string bestFeaturesPath = basePath + "data/matched_features.csv";
     std::string allFeaturesCSVPath = basePath + "data/keypoints_and_descriptors.csv";
-    std::string filterIndicesPath = basePath + "data/filtered_indices.csv";
-    std::string videoPath = basePath + "data/video/bender_video.webm";
+    std::string filterIndicesPath = basePath + "data/activeSet.csv";
+    std::string videoPath = basePath + "data/video/bender_video_20mb.mp4";
 
     imagePreprocessor processor;
     auto cap = processor.initializeVideoCapture(1920, 1080, videoPath);
@@ -76,6 +76,14 @@ int main(int argc, char **argv)
         auto filteredKpAndDesc = processor.filterKeypointsAndDescriptors(kpAndDesc, filterIndices);
         keypointsToUse = filteredKpAndDesc.first;
         descriptorsToUse = filteredKpAndDesc.second;
+
+        // Annotate keypoints with indices on the reference image
+        for (size_t i = 0; i < keypointsToUse.size(); ++i)
+        {
+            cv::Point2f position = keypointsToUse[i].pt;
+            std::string label = std::to_string(filterIndices[i]);
+            cv::putText(refImage, label, position, cv::FONT_HERSHEY_SIMPLEX, 0.5, cv::Scalar(0, 0, 255), 1, cv::LINE_AA);
+        }
     }
     else
     {
