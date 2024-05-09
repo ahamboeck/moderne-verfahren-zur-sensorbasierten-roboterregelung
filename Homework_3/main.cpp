@@ -3,14 +3,14 @@
 int main(int argc, char **argv)
 {
 
-    int nFeatures = 0;
+    int nFeatures = 150;
     int nOctaveLayers = 3;
-    double contrastThreshold = 0.04;
-    int edgeThreshold = 8;
-    double sigma = 1.6;
+    double contrastThreshold = 0.06;
+    int edgeThreshold = 10;
+    double sigma = 1.5;
 
-    int featuresFromCSV = 75;
-    int matchCountThreshold = 150;
+    int featuresFromCSV = 50;
+    int matchCountThreshold = 500;
 
     std::string mode = (argc > 1) ? argv[1] : "use";
     std::cout << "Running in mode: " << mode << std::endl;
@@ -19,8 +19,8 @@ int main(int argc, char **argv)
     std::string basePath = "/home/fhtw_user/moderne-verfahren-zur-sensorbasierten-roboterregelung/Homework_3/";
 
     // Derived paths from the base path
-    std::string imagePath = basePath + "data/original/bender_good_setup.jpg";
-    std::string calibrationFilePath = basePath + "camera_calib_data/calib_v0.4/ost.yaml";
+    std::string imagePath = basePath + "data/original/dragonball_new_setup.jpg";
+    std::string calibrationFilePath = basePath + "camera_calib_data/calib_v0.5/ost.yaml";
     std::string bestFeaturesPath = basePath + "data/matched_features.csv";
     std::string allFeaturesCSVPath = basePath + "data/keypoints_and_descriptors.csv";
     std::string filteredIndicesPath = basePath + "data/activeSet.csv";
@@ -33,9 +33,9 @@ int main(int argc, char **argv)
 
     std::map<int, cv::Point3f> indexedPoints = processor.load3DPoints(filteredIndicesXYZCoordinatesPath);
 
-    auto cap = processor.initializeVideoCapture(1920, 1080, videoPath);
+    auto cap = processor.initializeVideoCapture(1280, 720, "");
 
-    cv::Mat refImage = processor.prepareReferenceImage(imagePath, calibrationFilePath, 1920, 1080);
+    cv::Mat refImage = processor.prepareReferenceImage(imagePath, calibrationFilePath, 1280, 720);
     if (refImage.empty())
     {
         std::cerr << "Error reading reference image.\n";
@@ -51,7 +51,7 @@ int main(int argc, char **argv)
 
     // Setup window for display
     cv::namedWindow("Matches", cv::WINDOW_NORMAL); // Make window resizable
-    cv::resizeWindow("Matches", 1920, 1080);       // Set initial size
+    cv::resizeWindow("Matches", 3000, 2000);       // Set initial size
 
     std::vector<cv::KeyPoint> keypointsToUse = kpAndDesc.first;
     cv::Mat descriptorsToUse = kpAndDesc.second;
@@ -118,50 +118,63 @@ int main(int argc, char **argv)
             std::cout << "Failed to read frame from camera.\n";
             break;
         }
-
+        std::vector<cv::Point2f> points2D;
+        std::vector<cv::Point3f> points3D;
+        std::vector<cv::DMatch> matches;
         cv::Mat currGray = processor.undistortImage(frame, calibrationFilePath);
         auto currKpAndDesc = processor.siftDetect(currGray, mask, nFeatures, nOctaveLayers,
                                                   contrastThreshold, edgeThreshold, sigma);
-        std::vector<cv::DMatch> matches;
+
+        // Drawing the coordinate frame here
+        cv::Point center(frame.cols / 2, frame.rows / 2);
+        int axisLength = 50; // You can adjust this value as needed
+        // Draw the X-axis in red
+        cv::arrowedLine(frame, center, cv::Point(center.x + axisLength, center.y), cv::Scalar(0, 0, 255), 2);
+        // Draw the Y-axis in green
+        cv::arrowedLine(frame, center, cv::Point(center.x, center.y - axisLength), cv::Scalar(0, 255, 0), 2);
+        // Display the frame with the coordinate frame drawn
+        cv::imshow("Live Video with Coordinate Frame", frame);
+
         matcher.match(descriptorsToUse, currKpAndDesc.second, matches);
 
         // Filter matches based on distance threshold
         std::vector<cv::DMatch> goodMatches;
         for (auto &match : matches)
         {
-            if (match.distance < 250)
+            if (match.distance < 150)
             { // Define a suitable THRESHOLD based on your context
                 goodMatches.push_back(match);
             }
         }
         processor.updateFeatureTracksAndCounts(matches, currKpAndDesc.first, featureMatchCount, featureTracks);
 
-        std::vector<cv::Point2f> points2D;
-        std::vector<cv::Point3f> points3D;
-
-        for (const auto &match : goodMatches)
+        if (mode == "filter")
         {
-            if (indexedPoints.count(filteredIndices[match.queryIdx]))
+            processor.displayMatches(refImage, keypointsToUse, currGray, currKpAndDesc.first, matches);
+
+            for (const auto &match : goodMatches)
             {
-                points2D.push_back(currKpAndDesc.first[match.trainIdx].pt);
-                points3D.push_back(indexedPoints[filteredIndices[match.queryIdx]]);
+                if (indexedPoints.count(filteredIndices[match.queryIdx]))
+                {
+                    points2D.push_back(currKpAndDesc.first[match.trainIdx].pt);
+                    points3D.push_back(indexedPoints[filteredIndices[match.queryIdx]]);
+                }
+            }
+
+            // std::cout << "Number of 3D points: " << points3D.size() << std::endl;
+            if (points3D.size() >= 4)
+            {
+                cv::Mat rvec, tvec;
+                if (cv::solvePnP(points3D, points2D, processor.getCameraMatrix(), processor.getDistCoeffs(), rvec, tvec, false, cv::SOLVEPNP_ITERATIVE))
+                {
+                    cv::Mat rotationMatrix;
+                    cv::Rodrigues(rvec, rotationMatrix);
+                    std::cout << "Translation in X in mm: " << tvec.at<double>(0, 0) << std::endl;
+                    std::cout << "Translation in Y in mm: " << tvec.at<double>(1, 0) << std::endl;
+                    std::cout << "Translation in Z in mm: " << tvec.at<double>(2, 0) << std::endl;
+                }
             }
         }
-
-        std::cout << "Number of 3D points: " << points3D.size() << std::endl;
-        if (points3D.size() >= 4)
-        {
-            cv::Mat rvec, tvec;
-            if (cv::solvePnP(points3D, points2D, processor.getCameraMatrix(), processor.getDistCoeffs(), rvec, tvec, false, cv::SOLVEPNP_ITERATIVE))
-            {
-                cv::Mat rotationMatrix;
-                cv::Rodrigues(rvec, rotationMatrix);
-                std::cout << "Translation in X in cm: " << tvec.at<double>(0, 0) * 100 << std::endl;
-                std::cout << "Translation in Y in cm: " << tvec.at<double>(1, 0) * 100 << std::endl;
-                std::cout << "Translation in Z in cm: " << tvec.at<double>(2, 0) * 100 << std::endl;
-            }
-        }
-
         processor.displayMatches(refImage, keypointsToUse, currGray, currKpAndDesc.first, matches);
 
         int key = cv::waitKey(10);

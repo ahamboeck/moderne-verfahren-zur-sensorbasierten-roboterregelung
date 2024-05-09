@@ -363,7 +363,7 @@ void imagePreprocessor::updateFeatureTracksAndCounts(const std::vector<cv::DMatc
                                                      std::map<int, int> &featureMatchCount,
                                                      std::map<int, std::vector<cv::Point2f>> &featureTracks)
 {
-    std::cout << "Processing " << matches.size() << " matches." << std::endl;
+    // std::cout << "Processing " << matches.size() << " matches." << std::endl;
     for (const auto &match : matches)
     {
         int idx = match.queryIdx; // Index of the feature in the reference image
