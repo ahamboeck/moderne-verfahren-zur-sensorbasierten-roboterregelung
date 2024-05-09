@@ -505,12 +505,21 @@ std::vector<int> imagePreprocessor::readTopFeatures(const std::string &filepath,
     return indices;
 }
 
-std::map<int, cv::Point3f> imagePreprocessor::load3DPoints(const std::string &filepath) {
+/**
+ * Loads 3D points from a file and returns them as a map.
+ *
+ * @param filepath The path to the file containing the 3D points.
+ * @return A map of 3D points, where the key is the index and the value is the corresponding Point3f.
+ *         If the file cannot be opened, an empty map is returned.
+ */
+std::map<int, cv::Point3f> imagePreprocessor::load3DPoints(const std::string &filepath)
+{
     std::map<int, cv::Point3f> indexedPoints;
     std::ifstream file(filepath);
     std::string line;
 
-    if (!file.is_open()) {
+    if (!file.is_open())
+    {
         std::cerr << "Failed to open file: " << filepath << std::endl;
         return indexedPoints; // Return empty map if file cannot be opened
     }
@@ -518,26 +527,32 @@ std::map<int, cv::Point3f> imagePreprocessor::load3DPoints(const std::string &fi
     // Read the header line first and ignore it
     std::getline(file, line);
 
-    while (std::getline(file, line)) {
+    while (std::getline(file, line))
+    {
         std::stringstream linestream(line);
         std::string cell;
         std::vector<float> parsedRow;
 
         // Parse each line by commas
-        while (getline(linestream, cell, ',')) {
-            try {
+        while (getline(linestream, cell, ','))
+        {
+            try
+            {
                 parsedRow.push_back(std::stof(cell)); // Convert string to float and add to the row
-            } catch (const std::invalid_argument& ia) {
+            }
+            catch (const std::invalid_argument &ia)
+            {
                 std::cerr << "Invalid number found in file: " << ia.what() << '\n';
                 continue;
             }
         }
 
         // Create a Point3f from the parsed row (assuming columns are: Index, X, Y, Z)
-        if (parsedRow.size() >= 4) {  // Check if there are enough elements (index + coordinates)
-            int index = static_cast<int>(parsedRow[0]);  // Convert float to int for the index
+        if (parsedRow.size() >= 4)
+        {                                               // Check if there are enough elements (index + coordinates)
+            int index = static_cast<int>(parsedRow[0]); // Convert float to int for the index
             cv::Point3f point(parsedRow[1], parsedRow[2], parsedRow[3]);
-            indexedPoints[index] = point;  // Use index as the key
+            indexedPoints[index] = point; // Use index as the key
         }
     }
 
@@ -545,12 +560,21 @@ std::map<int, cv::Point3f> imagePreprocessor::load3DPoints(const std::string &fi
     return indexedPoints;
 }
 
-
+/**
+ * Returns the camera matrix used for image preprocessing.
+ *
+ * @return The camera matrix.
+ */
 cv::Mat imagePreprocessor::getCameraMatrix() const
 {
     return this->cameraMatrix_;
 }
 
+/**
+ * @brief Get the distortion coefficients of the image preprocessor.
+ *
+ * @return cv::Mat The distortion coefficients.
+ */
 cv::Mat imagePreprocessor::getDistCoeffs() const
 {
     return this->distCoeffs_;

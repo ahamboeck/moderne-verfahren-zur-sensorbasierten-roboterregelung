@@ -2,19 +2,22 @@
 
 int main(int argc, char **argv)
 {
+    // SIFT feature detection parameters
+    int nFeatures = 150;             // Number of features to detect
+    int nOctaveLayers = 3;           // Number of octave layers within each octave
+    double contrastThreshold = 0.06; // Threshold to filter out weak features in low-contrast regions
+    int edgeThreshold = 10;          // Threshold to filter out edge-like features
+    double sigma = 1.5;              // The sigma of the Gaussian applied to the input image at the octave #0
 
-    int nFeatures = 150;
-    int nOctaveLayers = 3;
-    double contrastThreshold = 0.06;
-    int edgeThreshold = 10;
-    double sigma = 1.5;
+    // Parameters for feature matching from CSV
+    int featuresFromCSV = 50;      // Number of features to use from CSV
+    int matchCountThreshold = 500; // Matching count threshold for feature tracking
 
-    int featuresFromCSV = 50;
-    int matchCountThreshold = 500;
-
+    // Determine the operation mode based on command line arguments
     std::string mode = (argc > 1) ? argv[1] : "filter";
     std::cout << "Running in mode: " << mode << std::endl;
 
+    // Paths for data and configuration files
     std::string imagePath = "../../data/original/dragonball_new_setup.jpg";
     std::string calibrationFilePath = "../../camera_calib_data/calib_v0.5/ost.yaml";
     std::string bestFeaturesPath = "../../data/feature_subsets/matched_features.csv";
@@ -23,14 +26,17 @@ int main(int argc, char **argv)
     std::string filteredIndicesXYZCoordinatesPath = "../../data/feature_subsets/activeSet_XYZ.csv";
     std::string videoPath = "../../data/video/bender_video_20mb.mp4";
 
-    std::vector<int> filteredIndices;
+    std::vector<int> filteredIndices; // Container for filtered indices
 
-    imagePreprocessor processor;
+    imagePreprocessor processor; // Image processing object
 
+    // Load 3D points from CSV
     std::map<int, cv::Point3f> indexedPoints = processor.load3DPoints(filteredIndicesXYZCoordinatesPath);
 
+    // Initialize video capture at specified resolution
     auto cap = processor.initializeVideoCapture(1280, 720, "");
 
+    // Prepare the reference image with specified parameters
     cv::Mat refImage = processor.prepareReferenceImage(imagePath, calibrationFilePath, 1280, 720);
     if (refImage.empty())
     {
@@ -38,30 +44,34 @@ int main(int argc, char **argv)
         return -1;
     }
 
-    cv::Mat mask = processor.createRectangleMask(refImage.size(), cv::Size(1700, 850));
+    // Create a rectangular mask to limit feature detection to specific areas
+    cv::Mat mask = processor.createRectangleMask(refImage.size(), cv::Size(1280, 720));
+
+    // Detect keypoints and descriptors using SIFT
     auto kpAndDesc = processor.siftDetect(refImage, mask, nFeatures, nOctaveLayers,
                                           contrastThreshold, edgeThreshold, sigma);
 
-    // Save keypoints and descriptors to CSV
+    // Save detected keypoints and descriptors to CSV
     processor.keypointsAndDescriptorsToCSV(allFeaturesCSVPath, kpAndDesc.first, kpAndDesc.second);
 
-    // Setup window for display
-    cv::namedWindow("Matches", cv::WINDOW_NORMAL); // Make window resizable
-    cv::resizeWindow("Matches", 3000, 2000);       // Set initial size
+    // Setup the display window
+    cv::namedWindow("Matches", cv::WINDOW_NORMAL);
+    cv::resizeWindow("Matches", 3000, 2000);
 
-    std::vector<cv::KeyPoint> keypointsToUse = kpAndDesc.first;
-    cv::Mat descriptorsToUse = kpAndDesc.second;
+    std::vector<cv::KeyPoint> keypointsToUse = kpAndDesc.first; // Keypoints to use
+    cv::Mat descriptorsToUse = kpAndDesc.second;                // Descriptors of keypoints
 
     if (mode == "use")
     {
         std::cout << "Using the best matches from CSV file." << std::endl;
         std::vector<int> bestIndices = processor.readTopFeatures(bestFeaturesPath, featuresFromCSV, SortCriteria::AverageDisplacement);
 
+        // Filter keypoints and descriptors based on the best indices
         auto filteredKpAndDesc = processor.filterKeypointsAndDescriptors(kpAndDesc, bestIndices);
         keypointsToUse = filteredKpAndDesc.first;
         descriptorsToUse = filteredKpAndDesc.second;
 
-        // Annotate keypoints with indices on the reference image
+        // Label keypoints on the reference image
         for (size_t i = 0; i < keypointsToUse.size(); ++i)
         {
             cv::Point2f position = keypointsToUse[i].pt;
@@ -71,14 +81,13 @@ int main(int argc, char **argv)
     }
     else if (mode == "filter")
     {
-        // If in "filter" mode, process the filtered indices file
         std::cout << "Filtering keypoints and descriptors using CSV file." << std::endl;
         filteredIndices = processor.readIndicesFromCSV(filteredIndicesPath);
         auto filteredKpAndDesc = processor.filterKeypointsAndDescriptors(kpAndDesc, filteredIndices);
         keypointsToUse = filteredKpAndDesc.first;
         descriptorsToUse = filteredKpAndDesc.second;
 
-        // Annotate keypoints with indices on the reference image
+        // Label keypoints on the reference image
         for (size_t i = 0; i < keypointsToUse.size(); ++i)
         {
             cv::Point2f position = keypointsToUse[i].pt;
@@ -88,105 +97,101 @@ int main(int argc, char **argv)
     }
     else
     {
-        // Default behavior for other modes
+        // Default behavior, use all detected keypoints and descriptors
         keypointsToUse = kpAndDesc.first;
         descriptorsToUse = kpAndDesc.second;
     }
 
-    std::map<int, int> featureMatchCount;
-    std::map<int, std::vector<cv::Point2f>> featureTracks;
+    std::map<int, int> featureMatchCount;                  // Counts of matches per feature
+    std::map<int, std::vector<cv::Point2f>> featureTracks; // Tracks of feature points
 
-    // Check the indices being used right after loading and before matching
+    // Output loaded indices for matching
     std::cout << "Loaded keypoints indices for matching: ";
     for (const auto &index : filteredIndices)
     {
         std::cout << index << " ";
     }
     std::cout << std::endl;
-    cv::BFMatcher matcher(cv::NORM_L2, true);
 
-    bool userExit = false;
-    while (!userExit)
+    cv::BFMatcher matcher(cv::NORM_L2, true); // Brute Force Matcher with cross-check
+
+    bool userExit = false; // Flag to control exit condition
+    while (!userExit)      // Main processing loop
     {
-        cv::Mat frame = processor.captureWebcam(&cap);
-        if (frame.empty())
+        cv::Mat frame = processor.captureWebcam(&cap); // Capture frame from webcam
+        if (frame.empty())                             // Check for failed capture
         {
             std::cout << "Failed to read frame from camera.\n";
             break;
         }
-        std::vector<cv::Point2f> points2D;
-        std::vector<cv::Point3f> points3D;
-        std::vector<cv::DMatch> matches;
-        cv::Mat currGray = processor.undistortImage(frame, calibrationFilePath);
-        auto currKpAndDesc = processor.siftDetect(currGray, mask, nFeatures, nOctaveLayers,
+        std::vector<cv::Point2f> points2D;                                                  // Container for 2D points
+        std::vector<cv::Point3f> points3D;                                                  // Container for 3D points
+        std::vector<cv::DMatch> matches;                                                    // Container for matches
+        cv::Mat currGray = processor.undistortImage(frame, calibrationFilePath);            // Undistort the current frame
+        auto currKpAndDesc = processor.siftDetect(currGray, mask, nFeatures, nOctaveLayers, // Detect keypoints and descriptors in the current frame
                                                   contrastThreshold, edgeThreshold, sigma);
 
-        // Drawing the coordinate frame here
+        // Draw coordinate frame lines
         cv::Point center(frame.cols / 2, frame.rows / 2);
-        int axisLength = 50; // You can adjust this value as needed
-        // Draw the X-axis in red
-        cv::arrowedLine(frame, center, cv::Point(center.x + axisLength, center.y), cv::Scalar(0, 0, 255), 2);
-        // Draw the Y-axis in green, pointing downwards
-        cv::arrowedLine(frame, center, cv::Point(center.x, center.y + axisLength), cv::Scalar(0, 255, 0), 2);
+        int axisLength = 50;                                                                                  // Length of the axis lines
+        cv::arrowedLine(frame, center, cv::Point(center.x + axisLength, center.y), cv::Scalar(0, 0, 255), 2); // X-axis in red
+        cv::arrowedLine(frame, center, cv::Point(center.x, center.y + axisLength), cv::Scalar(0, 255, 0), 2); // Y-axis in green
 
-        // Display the frame with the coordinate frame drawn
-        cv::imshow("Live Video with Coordinate Frame", frame);
+        cv::imshow("Live Video with Coordinate Frame", frame); // Display the frame
 
-        matcher.match(descriptorsToUse, currKpAndDesc.second, matches);
+        matcher.match(descriptorsToUse, currKpAndDesc.second, matches); // Match descriptors between reference and current frame
 
-        // Filter matches based on distance threshold
-        std::vector<cv::DMatch> goodMatches;
-        for (auto &match : matches)
+        std::vector<cv::DMatch> goodMatches; // Container for good matches
+        for (auto &match : matches)          // Filter matches based on distance
         {
             if (match.distance < 150)
-            { // Define a suitable THRESHOLD based on your context
+            {
                 goodMatches.push_back(match);
             }
         }
-        processor.updateFeatureTracksAndCounts(matches, currKpAndDesc.first, featureMatchCount, featureTracks);
+        processor.updateFeatureTracksAndCounts(matches, currKpAndDesc.first, featureMatchCount, featureTracks); // Update feature tracks and counts
 
         if (mode == "filter")
         {
-            processor.displayMatches(refImage, keypointsToUse, currGray, currKpAndDesc.first, matches);
+            processor.displayMatches(refImage, keypointsToUse, currGray, currKpAndDesc.first, matches); // Display matches if in filter mode
 
-            for (const auto &match : goodMatches)
+            for (const auto &match : goodMatches) // Check for matched keypoints in the list of filtered indices
             {
                 if (indexedPoints.count(filteredIndices[match.queryIdx]))
                 {
-                    points2D.push_back(currKpAndDesc.first[match.trainIdx].pt);
-                    points3D.push_back(indexedPoints[filteredIndices[match.queryIdx]]);
+                    points2D.push_back(currKpAndDesc.first[match.trainIdx].pt);         // Add 2D point to list
+                    points3D.push_back(indexedPoints[filteredIndices[match.queryIdx]]); // Add corresponding 3D point to list
                 }
             }
 
-            // std::cout << "Number of 3D points: " << points3D.size() << std::endl;
-            if (points3D.size() >= 4)
+            if (points3D.size() >= 4) // Check if there are enough points to perform solvePnP
             {
-                cv::Mat rvec, tvec;
+                cv::Mat rvec, tvec; // Rotation and translation vectors
                 if (cv::solvePnP(points3D, points2D, processor.getCameraMatrix(), processor.getDistCoeffs(), rvec, tvec, false, cv::SOLVEPNP_ITERATIVE))
                 {
-                    cv::Mat rotationMatrix;
-                    cv::Rodrigues(rvec, rotationMatrix);
-                    std::cout << "Translation in X in mm: " << tvec.at<double>(0, 0) << std::endl;
-                    std::cout << "Translation in Y in mm: " << tvec.at<double>(1, 0) << std::endl;
-                    std::cout << "Translation in Z in mm: " << tvec.at<double>(2, 0) << std::endl;
+                    cv::Mat rotationMatrix;                                                        // Rotation matrix
+                    cv::Rodrigues(rvec, rotationMatrix);                                           // Convert rotation vector to matrix
+                    std::cout << "Translation in X in mm: " << tvec.at<double>(0, 0) << std::endl; // Output X translation
+                    std::cout << "Translation in Y in mm: " << tvec.at<double>(1, 0) << std::endl; // Output Y translation
+                    std::cout << "Translation in Z in mm: " << tvec.at<double>(2, 0) << std::endl; // Output Z translation
                 }
             }
         }
-        processor.displayMatches(refImage, keypointsToUse, currGray, currKpAndDesc.first, matches);
+        processor.displayMatches(refImage, keypointsToUse, currGray, currKpAndDesc.first, matches); // Display matches in the current frame
 
-        int key = cv::waitKey(10);
-        if ((key & 0xFF) == 'q')
+        int key = cv::waitKey(10); // Wait for a key press for 10 ms
+        if ((key & 0xFF) == 'q')   // Check if 'q' was pressed
         {
             std::cout << "Exit requested by user. Key: " << key << std::endl;
             if (mode == "save")
             {
                 std::cout << "Saving data to CSV." << std::endl;
-                processor.saveFeatureTracksToCSV(bestFeaturesPath, featureMatchCount, featureTracks, matchCountThreshold);
+                processor.saveFeatureTracksToCSV(bestFeaturesPath, featureMatchCount, featureTracks, matchCountThreshold); // Save feature tracks to CSV
             }
-            userExit = true;
+            userExit = true; // Set exit flag to true
         }
     }
 
-    cv::destroyAllWindows();
-    return 0;
+    cv::destroyAllWindows(); // Destroy all OpenCV windows
+    return 0;                // Return success
 }

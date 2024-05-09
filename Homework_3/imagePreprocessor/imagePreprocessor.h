@@ -200,10 +200,37 @@ public:
      */
     std::vector<int> readTopFeatures(const std::string &filepath, int topN, SortCriteria criteria);
 
+    /**
+     * Loads 3D points from a file.
+     *
+     * This function reads a file specified by the given filepath and returns a map of 3D points.
+     * The file should contain data in a specific format, and this function parses the file to extract the 3D points.
+     *
+     * @param filepath The path to the file containing the 3D points data.
+     * @return A map of 3D points, where the key is an integer identifier and the value is a 3D point represented by cv::Point3f.
+     */
     std::map<int, cv::Point3f> load3DPoints(const std::string &filepath);
 
+    /**
+     * @brief Retrieves the camera matrix.
+     *
+     * This function returns the camera matrix used for image preprocessing.
+     * The camera matrix contains the intrinsic parameters of the camera, such as focal length and principal point.
+     *
+     * @return The camera matrix as a cv::Mat object.
+     */
     cv::Mat getCameraMatrix() const;
+
+    /**
+     * @brief Retrieves the distortion coefficients of the image preprocessor.
+     *
+     * This function returns the distortion coefficients used by the image preprocessor.
+     * Distortion coefficients are used to correct for lens distortion in images.
+     *
+     * @return The distortion coefficients as a cv::Mat object.
+     */
     cv::Mat getDistCoeffs() const;
+
 private:
     const cv::Mat input_;               // The input image
     cv::Mat undistortedInput_;          // The undistorted image
