@@ -23,10 +23,16 @@ int main(int argc, char **argv)
     std::string calibrationFilePath = basePath + "camera_calib_data/calib_v0.4/ost.yaml";
     std::string bestFeaturesPath = basePath + "data/matched_features.csv";
     std::string allFeaturesCSVPath = basePath + "data/keypoints_and_descriptors.csv";
-    std::string filterIndicesPath = basePath + "data/activeSet.csv";
+    std::string filteredIndicesPath = basePath + "data/activeSet.csv";
+    std::string filteredIndicesXYZCoordinatesPath = basePath + "data/activeSet_XYZ.csv";
     std::string videoPath = basePath + "data/video/bender_video_20mb.mp4";
 
+    std::vector<int> filteredIndices;
+
     imagePreprocessor processor;
+
+    std::map<int, cv::Point3f> indexedPoints = processor.load3DPoints(filteredIndicesXYZCoordinatesPath);
+
     auto cap = processor.initializeVideoCapture(1920, 1080, videoPath);
 
     cv::Mat refImage = processor.prepareReferenceImage(imagePath, calibrationFilePath, 1920, 1080);
@@ -71,9 +77,8 @@ int main(int argc, char **argv)
     {
         // If in "filter" mode, process the filtered indices file
         std::cout << "Filtering keypoints and descriptors using CSV file." << std::endl;
-        std::vector<int> filterIndices = processor.readIndicesFromCSV(filterIndicesPath);
-
-        auto filteredKpAndDesc = processor.filterKeypointsAndDescriptors(kpAndDesc, filterIndices);
+        filteredIndices = processor.readIndicesFromCSV(filteredIndicesPath);
+        auto filteredKpAndDesc = processor.filterKeypointsAndDescriptors(kpAndDesc, filteredIndices);
         keypointsToUse = filteredKpAndDesc.first;
         descriptorsToUse = filteredKpAndDesc.second;
 
@@ -81,7 +86,7 @@ int main(int argc, char **argv)
         for (size_t i = 0; i < keypointsToUse.size(); ++i)
         {
             cv::Point2f position = keypointsToUse[i].pt;
-            std::string label = std::to_string(filterIndices[i]);
+            std::string label = std::to_string(filteredIndices[i]);
             cv::putText(refImage, label, position, cv::FONT_HERSHEY_SIMPLEX, 0.5, cv::Scalar(0, 0, 255), 1, cv::LINE_AA);
         }
     }
@@ -94,6 +99,14 @@ int main(int argc, char **argv)
 
     std::map<int, int> featureMatchCount;
     std::map<int, std::vector<cv::Point2f>> featureTracks;
+
+    // Check the indices being used right after loading and before matching
+    std::cout << "Loaded keypoints indices for matching: ";
+    for (const auto &index : filteredIndices)
+    {
+        std::cout << index << " ";
+    }
+    std::cout << std::endl;
     cv::BFMatcher matcher(cv::NORM_L2, true);
 
     bool userExit = false;
@@ -111,7 +124,44 @@ int main(int argc, char **argv)
                                                   contrastThreshold, edgeThreshold, sigma);
         std::vector<cv::DMatch> matches;
         matcher.match(descriptorsToUse, currKpAndDesc.second, matches);
+
+        // Filter matches based on distance threshold
+        std::vector<cv::DMatch> goodMatches;
+        for (auto &match : matches)
+        {
+            if (match.distance < 250)
+            { // Define a suitable THRESHOLD based on your context
+                goodMatches.push_back(match);
+            }
+        }
         processor.updateFeatureTracksAndCounts(matches, currKpAndDesc.first, featureMatchCount, featureTracks);
+
+        std::vector<cv::Point2f> points2D;
+        std::vector<cv::Point3f> points3D;
+
+        for (const auto &match : goodMatches)
+        {
+            if (indexedPoints.count(filteredIndices[match.queryIdx]))
+            {
+                points2D.push_back(currKpAndDesc.first[match.trainIdx].pt);
+                points3D.push_back(indexedPoints[filteredIndices[match.queryIdx]]);
+            }
+        }
+
+        std::cout << "Number of 3D points: " << points3D.size() << std::endl;
+        if (points3D.size() >= 4)
+        {
+            cv::Mat rvec, tvec;
+            if (cv::solvePnP(points3D, points2D, processor.getCameraMatrix(), processor.getDistCoeffs(), rvec, tvec, false, cv::SOLVEPNP_ITERATIVE))
+            {
+                cv::Mat rotationMatrix;
+                cv::Rodrigues(rvec, rotationMatrix);
+                std::cout << "Translation in X in cm: " << tvec.at<double>(0, 0) * 100 << std::endl;
+                std::cout << "Translation in Y in cm: " << tvec.at<double>(1, 0) * 100 << std::endl;
+                std::cout << "Translation in Z in cm: " << tvec.at<double>(2, 0) * 100 << std::endl;
+            }
+        }
+
         processor.displayMatches(refImage, keypointsToUse, currGray, currKpAndDesc.first, matches);
 
         int key = cv::waitKey(10);

@@ -1,6 +1,6 @@
 #pragma once
-#include <map>
 
+#include <map>
 #include <iostream>
 #include <vector>
 #include <string>
@@ -200,6 +200,10 @@ public:
      */
     std::vector<int> readTopFeatures(const std::string &filepath, int topN, SortCriteria criteria);
 
+    std::map<int, cv::Point3f> load3DPoints(const std::string &filepath);
+
+    cv::Mat getCameraMatrix() const;
+    cv::Mat getDistCoeffs() const;
 private:
     const cv::Mat input_;               // The input image
     cv::Mat undistortedInput_;          // The undistorted image

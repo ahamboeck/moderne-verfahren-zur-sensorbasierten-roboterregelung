@@ -7,7 +7,7 @@ INCLUDES = -I/usr/local/include/opencv4 \
 LFLAGS = -L/usr/local/lib
 LIBS = -lopencv_core -lopencv_imgcodecs -lopencv_highgui -lopencv_imgproc \
        -lopencv_video -lopencv_ml -lopencv_features2d -lopencv_xfeatures2d \
-       -lyaml-cpp -lopencv_shape -lopencv_videoio -pthread
+       -lyaml-cpp -lopencv_shape -lopencv_videoio -pthread -lopencv_calib3d
 SRCS = main.cpp imagePreprocessor/imagePreprocessor.cpp
 OBJS = $(SRCS:.cpp=.o)
 MAIN = main

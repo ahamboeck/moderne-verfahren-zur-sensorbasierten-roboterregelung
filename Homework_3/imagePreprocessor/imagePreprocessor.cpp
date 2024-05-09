@@ -69,7 +69,7 @@ cv::VideoCapture imagePreprocessor::initializeVideoCapture(int width, int height
     if (!cap.isOpened())
     {
         std::cerr << "Error: Could not open the camera or video file" << std::endl;
-        return cv::VideoCapture();  // Return a non-opened VideoCapture object
+        return cv::VideoCapture(); // Return a non-opened VideoCapture object
     }
 
     // Set the desired width and height properties (works for webcams only)
@@ -146,7 +146,8 @@ cv::Mat imagePreprocessor::undistortImage(cv::Mat &input, std::string pathToCali
 
             cv::Mat cameraMatrix = cv::Mat(cameraMatrixData, true).reshape(0, 3);                 // reshaping to 3x3 matrix
             cv::Mat distCoeffs = cv::Mat(distCoeffsData, true).reshape(0, distCoeffsData.size()); // reshaping if needed
-
+            this->cameraMatrix_ = cameraMatrix.clone();
+            this->distCoeffs_ = distCoeffs.clone();
             cv::Mat undistortedInput;
             cv::undistort(input, undistortedInput, cameraMatrix, distCoeffs);
             // std::cout << "Undistorted image created" << std::endl;
@@ -268,7 +269,6 @@ std::vector<int> imagePreprocessor::readIndicesFromCSV(const std::string &filepa
     return indices;
 }
 
-
 /**
  * Draws keypoints on the input image and returns the resulting image.
  *
@@ -370,9 +370,9 @@ void imagePreprocessor::updateFeatureTracksAndCounts(const std::vector<cv::DMatc
         featureMatchCount[idx]++;
         featureTracks[idx].push_back(currKeypoints[match.trainIdx].pt);
         // Debugging output for each match
-        std::cout << "Feature Index: " << idx
-                  << " | Current Match Count: " << featureMatchCount[idx]
-                  << " | Current Point: " << currKeypoints[match.trainIdx].pt << std::endl;
+        // std::cout << "Feature Index: " << idx
+        //           << " | Current Match Count: " << featureMatchCount[idx]
+        //           << " | Current Point: " << currKeypoints[match.trainIdx].pt << std::endl;
     }
 }
 
@@ -503,4 +503,55 @@ std::vector<int> imagePreprocessor::readTopFeatures(const std::string &filepath,
     std::cout << std::endl;
 
     return indices;
+}
+
+std::map<int, cv::Point3f> imagePreprocessor::load3DPoints(const std::string &filepath) {
+    std::map<int, cv::Point3f> indexedPoints;
+    std::ifstream file(filepath);
+    std::string line;
+
+    if (!file.is_open()) {
+        std::cerr << "Failed to open file: " << filepath << std::endl;
+        return indexedPoints; // Return empty map if file cannot be opened
+    }
+
+    // Read the header line first and ignore it
+    std::getline(file, line);
+
+    while (std::getline(file, line)) {
+        std::stringstream linestream(line);
+        std::string cell;
+        std::vector<float> parsedRow;
+
+        // Parse each line by commas
+        while (getline(linestream, cell, ',')) {
+            try {
+                parsedRow.push_back(std::stof(cell)); // Convert string to float and add to the row
+            } catch (const std::invalid_argument& ia) {
+                std::cerr << "Invalid number found in file: " << ia.what() << '\n';
+                continue;
+            }
+        }
+
+        // Create a Point3f from the parsed row (assuming columns are: Index, X, Y, Z)
+        if (parsedRow.size() >= 4) {  // Check if there are enough elements (index + coordinates)
+            int index = static_cast<int>(parsedRow[0]);  // Convert float to int for the index
+            cv::Point3f point(parsedRow[1], parsedRow[2], parsedRow[3]);
+            indexedPoints[index] = point;  // Use index as the key
+        }
+    }
+
+    file.close();
+    return indexedPoints;
+}
+
+
+cv::Mat imagePreprocessor::getCameraMatrix() const
+{
+    return this->cameraMatrix_;
+}
+
+cv::Mat imagePreprocessor::getDistCoeffs() const
+{
+    return this->distCoeffs_;
 }
