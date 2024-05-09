@@ -1,4 +1,4 @@
-#include "imagePreprocessor/imagePreprocessor.h"
+#include "../../imagePreprocessor/imagePreprocessor.h"
 
 int main(int argc, char **argv)
 {
@@ -12,20 +12,16 @@ int main(int argc, char **argv)
     int featuresFromCSV = 50;
     int matchCountThreshold = 500;
 
-    std::string mode = (argc > 1) ? argv[1] : "use";
+    std::string mode = (argc > 1) ? argv[1] : "filter";
     std::cout << "Running in mode: " << mode << std::endl;
 
-    // Define the base path for all files
-    std::string basePath = "/home/fhtw_user/moderne-verfahren-zur-sensorbasierten-roboterregelung/Homework_3/";
-
-    // Derived paths from the base path
-    std::string imagePath = basePath + "data/original/dragonball_new_setup.jpg";
-    std::string calibrationFilePath = basePath + "camera_calib_data/calib_v0.5/ost.yaml";
-    std::string bestFeaturesPath = basePath + "data/matched_features.csv";
-    std::string allFeaturesCSVPath = basePath + "data/keypoints_and_descriptors.csv";
-    std::string filteredIndicesPath = basePath + "data/activeSet.csv";
-    std::string filteredIndicesXYZCoordinatesPath = basePath + "data/activeSet_XYZ.csv";
-    std::string videoPath = basePath + "data/video/bender_video_20mb.mp4";
+    std::string imagePath = "../../data/original/dragonball_new_setup.jpg";
+    std::string calibrationFilePath = "../../camera_calib_data/calib_v0.5/ost.yaml";
+    std::string bestFeaturesPath = "../../data/feature_subsets/matched_features.csv";
+    std::string allFeaturesCSVPath = "../../data/feature_subsets/keypoints_and_descriptors.csv";
+    std::string filteredIndicesPath = "../../data/feature_subsets/activeSet.csv";
+    std::string filteredIndicesXYZCoordinatesPath = "../../data/feature_subsets/activeSet_XYZ.csv";
+    std::string videoPath = "../../data/video/bender_video_20mb.mp4";
 
     std::vector<int> filteredIndices;
 
@@ -130,8 +126,9 @@ int main(int argc, char **argv)
         int axisLength = 50; // You can adjust this value as needed
         // Draw the X-axis in red
         cv::arrowedLine(frame, center, cv::Point(center.x + axisLength, center.y), cv::Scalar(0, 0, 255), 2);
-        // Draw the Y-axis in green
-        cv::arrowedLine(frame, center, cv::Point(center.x, center.y - axisLength), cv::Scalar(0, 255, 0), 2);
+        // Draw the Y-axis in green, pointing downwards
+        cv::arrowedLine(frame, center, cv::Point(center.x, center.y + axisLength), cv::Scalar(0, 255, 0), 2);
+
         // Display the frame with the coordinate frame drawn
         cv::imshow("Live Video with Coordinate Frame", frame);
 

@@ -1,16 +1,15 @@
 CXX = g++
 CXXFLAGS = -Wall -g
 INCLUDES = -I/usr/local/include/opencv4 \
-           -I/home/fhtw_user/moderne-verfahren-zur-sensorbasierten-roboterregelung/Homework_3/siftDetectorTrain \
-           -I/home/fhtw_user/moderne-verfahren-zur-sensorbasierten-roboterregelung/Homework_3/include \
+           -I../../include \
 		   -I/usr/local/include/opencv2/
 LFLAGS = -L/usr/local/lib
 LIBS = -lopencv_core -lopencv_imgcodecs -lopencv_highgui -lopencv_imgproc \
        -lopencv_video -lopencv_ml -lopencv_features2d -lopencv_xfeatures2d \
        -lyaml-cpp -lopencv_shape -lopencv_videoio -pthread -lopencv_calib3d
-SRCS = main.cpp imagePreprocessor/imagePreprocessor.cpp
+SRCS = poseEstimate.cpp ../../imagePreprocessor/imagePreprocessor.cpp
 OBJS = $(SRCS:.cpp=.o)
-MAIN = main
+MAIN = poseEstimate
 
 .PHONY: clean
 
