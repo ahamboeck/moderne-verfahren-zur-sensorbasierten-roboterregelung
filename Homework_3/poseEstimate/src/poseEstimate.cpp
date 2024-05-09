@@ -24,7 +24,7 @@ int main(int argc, char **argv)
     std::string allFeaturesCSVPath = "../../data/feature_subsets/keypoints_and_descriptors.csv";
     std::string filteredIndicesPath = "../../data/feature_subsets/activeSet.csv";
     std::string filteredIndicesXYZCoordinatesPath = "../../data/feature_subsets/activeSet_XYZ.csv";
-    std::string videoPath = "../../data/video/bender_video_20mb.mp4";
+    std::string videoPath = "../../data/video/dragonball_video_noaudio.webm";
 
     std::vector<int> filteredIndices; // Container for filtered indices
 
@@ -34,7 +34,7 @@ int main(int argc, char **argv)
     std::map<int, cv::Point3f> indexedPoints = processor.load3DPoints(filteredIndicesXYZCoordinatesPath);
 
     // Initialize video capture at specified resolution
-    auto cap = processor.initializeVideoCapture(1280, 720, "");
+    auto cap = processor.initializeVideoCapture(1280, 720, videoPath);
 
     // Prepare the reference image with specified parameters
     cv::Mat refImage = processor.prepareReferenceImage(imagePath, calibrationFilePath, 1280, 720);
